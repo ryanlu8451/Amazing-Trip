@@ -1,14 +1,11 @@
 import { useState } from 'react'
 import {
   AlertTriangle,
-  BedDouble,
   CheckCircle2,
   ChevronDown,
   CreditCard,
-  DollarSign,
   Pencil,
   PieChart,
-  Plane,
   Plus,
   ReceiptText,
   Trash2,

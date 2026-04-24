@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
@@ -7,8 +8,38 @@ import Hotels from './pages/Hotels'
 import Budget from './pages/Budget'
 import Tips from './pages/Tips'
 import TripSettings from './pages/TripSettings'
+import Login from './pages/Login'
+import { useAuthStore } from './store/authStore'
 
 function App() {
+  const {
+    loading,
+    user,
+    startAuthListener,
+  } = useAuthStore()
+
+  useEffect(() => {
+    const unsubscribe = startAuthListener()
+    return unsubscribe
+  }, [startAuthListener])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-800 flex items-center justify-center px-6">
+        <div className="bg-white rounded-3xl shadow-xl px-6 py-5 text-center">
+          <p className="text-blue-500 text-sm font-semibold tracking-wide">
+            AMAZING TRIP
+          </p>
+          <p className="text-gray-500 text-sm mt-2">Checking sign-in...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Login />
+  }
+
   return (
     <BrowserRouter>
       <div className="pb-20">

@@ -11,8 +11,10 @@ import {
   Trash2,
   CheckCircle2,
   Settings,
+  LogOut,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
+import { useAuthStore } from '../store/authStore'
 import EditModal from '../components/EditModal'
 import { InputField } from '../components/InputField'
 
@@ -128,6 +130,7 @@ export default function Home() {
     deleteTrip,
     updateTrip,
   } = useTripStore()
+  const { user, logOut } = useAuthStore()
 
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -215,8 +218,8 @@ export default function Home() {
     navigate('/timeline')
   }
 
-  const handleTripCardTap = (tripId) => {
-    const now = Date.now()
+  const handleTripCardTap = (tripId, event) => {
+    const now = event.timeStamp
     const lastTap = lastTripTapRef.current
     const isDoubleTap = lastTap.tripId === tripId && now - lastTap.time < 380
 
@@ -237,12 +240,49 @@ export default function Home() {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <p className="text-blue-200 text-sm font-medium tracking-wide">AMAZING TRIP</p>
-              <h1 className="text-white text-2xl font-bold mt-1">Welcome back 👋</h1>
+              <h1 className="text-white text-2xl font-bold mt-1">
+                Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋
+              </h1>
               <p className="text-blue-100 text-sm mt-1">
                 Plan, organize, and share every trip in one place.
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={logOut}
+              className="bg-white/20 text-white rounded-full p-2 shrink-0"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={18} />
+            </button>
           </div>
+
+          {user && (
+            <div className="mb-5 rounded-2xl bg-white/15 px-4 py-3 backdrop-blur flex items-center gap-3">
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  className="w-9 h-9 rounded-full border border-white/50"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-white/20 text-white flex items-center justify-center font-bold">
+                  {(user.name || user.email || 'U')[0].toUpperCase()}
+                </div>
+              )}
+
+              <div className="min-w-0">
+                <p className="text-white text-sm font-semibold truncate">
+                  {user.name || 'Signed in'}
+                </p>
+                <p className="text-blue-100 text-xs truncate">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+          )}
 
           {hasTrips && activeTrip ? (
             <div className="bg-white/15 rounded-2xl p-5 backdrop-blur">
@@ -355,7 +395,7 @@ export default function Home() {
                     <div className="flex items-start justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() => handleTripCardTap(item.id)}
+                        onClick={(event) => handleTripCardTap(item.id, event)}
                         className="flex items-start gap-3 text-left flex-1 min-w-0"
                       >
                         <div className="text-3xl shrink-0">{item.coverEmoji || '🌍'}</div>
