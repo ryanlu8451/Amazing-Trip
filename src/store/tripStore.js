@@ -183,7 +183,7 @@ function updateActiveTripSection(state, sectionName, newSectionValue) {
 
 export const useTripStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       trips: [defaultTrip],
       activeTripId: defaultTrip.id,
 

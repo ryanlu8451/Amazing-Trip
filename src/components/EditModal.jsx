@@ -3,19 +3,19 @@ import { X } from 'lucide-react'
 export default function EditModal({ title, onClose, children }) {
   return (
     <div
-      className="fixed inset-0 bg-slate-950/55 z-50 flex items-end justify-center px-3"
+      className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-[#f9faf8] rounded-t-[2rem] w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl border-x-[6px] border-t-[6px] border-white">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-[#f9faf8] rounded-t-[1.6rem]">
-          <h3 className="font-bold text-slate-900">{title}</h3>
+      <div className="bg-white rounded-t-3xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0 bg-white rounded-t-3xl">
+          <h3 className="font-semibold text-gray-800">{title}</h3>
 
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full bg-white text-slate-500 shadow-sm hover:text-slate-900"
+            className="p-1 rounded-full hover:bg-gray-100"
           >
-            <X size={18} />
+            <X size={20} className="text-gray-500" />
           </button>
         </div>
 

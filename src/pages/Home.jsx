@@ -10,9 +10,7 @@ import {
   MapPin,
   Trash2,
   CheckCircle2,
-  Search,
-  SlidersHorizontal,
-  Star,
+  Settings,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import EditModal from '../components/EditModal'
@@ -25,6 +23,35 @@ const emptyTripForm = {
   endDate: '',
   coverEmoji: '🌍',
   members: [],
+}
+
+function CountdownBadge({ startDate }) {
+  if (!startDate) {
+    return <div className="text-white text-xl font-bold">Start planning ✨</div>
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const departureDate = new Date(`${startDate}T00:00:00`)
+  const days = Math.ceil((departureDate - today) / (1000 * 60 * 60 * 24))
+
+  if (days > 0) {
+    return (
+      <div className="text-center">
+        <div className="text-5xl font-bold text-white">{days}</div>
+        <div className="text-white/80 text-sm mt-1">
+          {days === 1 ? 'day to go' : 'days to go'}
+        </div>
+      </div>
+    )
+  }
+
+  if (days === 0) {
+    return <div className="text-white text-xl font-bold">🎉 Departing today!</div>
+  }
+
+  return <div className="text-white text-xl font-bold">In progress / started ✈️</div>
 }
 
 function getTripDays(startDate, endDate) {
@@ -188,8 +215,8 @@ export default function Home() {
     navigate('/timeline')
   }
 
-  const handleTripCardTap = (tripId, event) => {
-    const now = event.timeStamp
+  const handleTripCardTap = (tripId) => {
+    const now = Date.now()
     const lastTap = lastTripTapRef.current
     const isDoubleTap = lastTap.tripId === tripId && now - lastTap.time < 380
 
@@ -204,128 +231,112 @@ export default function Home() {
   }
 
   return (
-    <div className="travel-screen px-3 py-3">
-      <div className="travel-phone">
-        <div className="px-5 pt-6 pb-5">
-          <div className="flex items-start justify-between gap-4">
+    <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+      <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 px-6 pt-12 pb-8">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900">
-                Hi, David <span className="text-base">👋</span>
-              </h1>
-              <p className="text-xs font-medium text-slate-400 mt-1">Explore the world</p>
+              <p className="text-blue-200 text-sm font-medium tracking-wide">AMAZING TRIP</p>
+              <h1 className="text-white text-2xl font-bold mt-1">Welcome back 👋</h1>
+              <p className="text-blue-100 text-sm mt-1">
+                Plan, organize, and share every trip in one place.
+              </p>
+            </div>
+          </div>
+
+          {hasTrips && activeTrip ? (
+            <div className="bg-white/15 rounded-2xl p-5 backdrop-blur">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-4xl">{trip.coverEmoji}</span>
+                    <div>
+                      <h2 className="text-white text-xl font-bold">
+                        {trip.name || trip.destination || 'Untitled Trip'}
+                      </h2>
+                      <p className="text-blue-100 text-sm flex items-center gap-1 mt-1">
+                        <MapPin size={14} />
+                        {trip.destination || 'No destination yet'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-blue-100 text-sm mt-3">
+                    {trip.startDate || 'Start date'} → {trip.endDate || 'End date'}
+                    {tripDays > 0 ? ` · ${tripDays} ${tripDays === 1 ? 'day' : 'days'}` : ''}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openEditModal}
+                  className="bg-white/20 p-2 rounded-full"
+                  aria-label="Edit active trip"
+                >
+                  <Pencil size={16} className="text-white" />
+                </button>
+              </div>
+
+              <div className="text-center pt-2">
+                <CountdownBadge startDate={trip.startDate} />
+
+                <div className="flex justify-center flex-wrap gap-2 mt-4">
+                  {(trip.members || []).map((member) => (
+                    <div
+                      key={member}
+                      className="bg-white/20 rounded-full px-3 py-1 text-white text-xs"
+                    >
+                      {member}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/trip-settings')}
+                  className="mt-5 w-full bg-white text-blue-600 rounded-xl py-3 font-semibold text-sm flex items-center justify-center gap-2"
+                >
+                  <Settings size={17} />
+                  Manage Trip Settings
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white/15 rounded-2xl p-5 text-center backdrop-blur">
+              <div className="text-5xl mb-3">🌍</div>
+              <h2 className="text-white text-xl font-bold">No trips yet</h2>
+              <p className="text-blue-100 text-sm mt-2">
+                Use the + button in My Trips below to create your first trip.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-5 overflow-x-hidden">
+        <div className="bg-white rounded-2xl shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold text-gray-800">My Trips</h2>
+              <p className="text-xs text-gray-400 mt-1">
+                Trips are sorted by departure date. Tap to select, double tap to open timeline.
+              </p>
             </div>
 
             <button
               type="button"
-              onClick={openEditModal}
-              className="h-10 w-10 rounded-full bg-white shadow-md shadow-slate-200 overflow-hidden border border-white"
-              aria-label="Edit active trip"
+              onClick={openCreateModal}
+              className="bg-blue-50 text-blue-600 rounded-full p-2"
+              aria-label="Create trip"
             >
-              <span className="block h-full w-full bg-gradient-to-br from-amber-100 to-slate-200 pt-2 text-center text-lg">
-                {trip.coverEmoji || '🌍'}
-              </span>
+              <Plus size={18} />
             </button>
           </div>
-
-          <div className="mt-5 flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
-            <Search size={15} className="text-slate-400" />
-            <span className="flex-1 text-xs text-slate-400">Search places</span>
-            <div className="h-5 w-px bg-slate-200" />
-            <SlidersHorizontal size={15} className="text-slate-500" />
-          </div>
-
-          <div className="mt-6 flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900">Popular places</h2>
-            <button type="button" className="text-[11px] font-semibold text-slate-400">
-              View all
-            </button>
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <span className="travel-pill px-4 py-2 text-[11px] font-semibold">Most Viewed</span>
-            <span className="rounded-full bg-slate-100 px-4 py-2 text-[11px] font-semibold text-slate-400">
-              Nearby
-            </span>
-            <span className="rounded-full bg-slate-100 px-4 py-2 text-[11px] font-semibold text-slate-400">
-              Latest
-            </span>
-          </div>
-        </div>
-
-        <div className="px-5 pb-5 space-y-5">
-          {hasTrips && activeTrip ? (
-            <div className="travel-hero-card min-h-72 p-4 flex flex-col justify-end">
-              <button
-                type="button"
-                onClick={openEditModal}
-                className="absolute right-4 top-4 z-10 rounded-full bg-white/30 p-2 backdrop-blur"
-                aria-label="Edit active trip"
-              >
-                <Pencil size={15} className="text-white" />
-              </button>
-
-              <div className="relative z-10 rounded-2xl bg-slate-950/42 p-3 backdrop-blur-sm">
-                <div className="flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="truncate text-sm font-bold text-white">
-                      {trip.name || trip.destination || 'Untitled Trip'}
-                    </h2>
-                    <p className="mt-1 flex items-center gap-1 text-[11px] text-white/80">
-                      <MapPin size={11} />
-                      {trip.destination || 'No destination yet'}
-                    </p>
-                  </div>
-
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] text-white/60">Days</p>
-                    <p className="text-lg font-extrabold text-white">{tripDays || '--'}</p>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between text-[11px] text-white/80">
-                  <span>{trip.startDate || 'Start date'} → {trip.endDate || 'End date'}</span>
-                  <span className="flex items-center gap-1">
-                    <Star size={11} className="fill-white text-white" />
-                    4.8
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="travel-hero-card min-h-72 p-6 flex flex-col items-center justify-center text-center">
-              <div className="relative z-10">
-                <div className="text-5xl mb-4">Travel 🌐</div>
-                <h2 className="text-white text-xl font-bold">Find your dream destination</h2>
-                <p className="text-white/75 text-sm mt-2">
-                  Create your first trip from My Trips below.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="travel-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-extrabold text-slate-900">My Trips</h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Tap to select, double tap to open timeline.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="bg-slate-950 text-white rounded-full p-2.5 shadow-lg shadow-slate-950/20"
-                aria-label="Create trip"
-              >
-                <Plus size={18} />
-              </button>
-            </div>
 
           {sortedTrips.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 p-6 text-center">
-              <p className="text-sm font-semibold text-slate-500">No trips created yet.</p>
-              <p className="text-xs text-slate-400 mt-1">
+            <div className="rounded-2xl bg-gray-50 p-6 text-center">
+              <p className="text-sm font-medium text-gray-500">No trips created yet.</p>
+              <p className="text-xs text-gray-400 mt-1">
                 Tap the + button above to start planning.
               </p>
             </div>
@@ -337,40 +348,38 @@ export default function Home() {
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-[1.25rem] border p-3.5 transition active:scale-[0.99] ${
-                      isActive ? 'border-slate-900 bg-slate-50' : 'border-slate-100 bg-white'
+                    className={`rounded-2xl border p-4 transition active:scale-[0.99] ${
+                      isActive ? 'border-blue-300 bg-blue-50' : 'border-gray-100 bg-white'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button
                         type="button"
-                        onClick={(event) => handleTripCardTap(item.id, event)}
+                        onClick={() => handleTripCardTap(item.id)}
                         className="flex items-start gap-3 text-left flex-1 min-w-0"
                       >
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-sky-100 to-blue-200 flex items-center justify-center text-2xl shrink-0">
-                          {item.coverEmoji || '🌍'}
-                        </div>
+                        <div className="text-3xl shrink-0">{item.coverEmoji || '🌍'}</div>
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-slate-900 truncate">
+                            <h3 className="font-semibold text-gray-800 truncate">
                               {item.name || item.destination || 'Untitled Trip'}
                             </h3>
 
                             {isActive && (
-                              <CheckCircle2 size={15} className="text-slate-950 shrink-0" />
+                              <CheckCircle2 size={15} className="text-blue-500 shrink-0" />
                             )}
                           </div>
 
-                          <p className="text-xs text-slate-500 mt-1 truncate">
+                          <p className="text-xs text-gray-500 mt-1 truncate">
                             {item.destination || 'No destination'}
                           </p>
 
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-xs text-gray-400 mt-1">
                             {item.startDate || 'Start date'} → {item.endDate || 'End date'}
                           </p>
 
-                          <p className="text-[11px] text-slate-400 mt-2">
+                          <p className="text-[11px] text-blue-400 mt-2">
                             {isActive ? 'Selected · Double tap to open timeline' : 'Tap to select · Double tap to open timeline'}
                           </p>
                         </div>
@@ -397,37 +406,37 @@ export default function Home() {
             <button
               type="button"
               onClick={() => navigate('/timeline')}
-              className="travel-card w-full overflow-hidden text-left"
+              className="w-full bg-white rounded-2xl shadow-sm overflow-hidden text-left"
             >
               <div className="flex items-center justify-between px-5 pt-5 pb-3">
                 <div className="flex items-center gap-2">
-                  <Calendar size={18} className="text-slate-900" />
-                  <span className="font-bold text-slate-900">Trip Timeline</span>
+                  <Calendar size={18} className="text-blue-500" />
+                  <span className="font-semibold text-gray-800">Trip Timeline</span>
                 </div>
 
-                <span className="text-slate-500 text-sm flex items-center gap-1">
+                <span className="text-blue-500 text-sm flex items-center gap-1">
                   Manage <ChevronRight size={14} />
                 </span>
               </div>
 
               {plannedDays === 0 ? (
                 <div className="px-5 pb-5">
-                  <div className="rounded-2xl bg-sky-50 p-4">
-                    <p className="text-sm font-bold text-slate-900">
+                  <div className="rounded-2xl bg-blue-50 p-4">
+                    <p className="text-sm font-semibold text-blue-700">
                       No daily schedule yet
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-blue-500 mt-1">
                       Tap here to add daily activities, times, locations, and notes.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="px-5 pb-5">
-                  <div className="rounded-2xl bg-sky-50 p-4">
-                    <p className="text-sm font-bold text-slate-900">
+                  <div className="rounded-2xl bg-blue-50 p-4">
+                    <p className="text-sm font-semibold text-blue-700">
                       {plannedDays} planned day{plannedDays === 1 ? '' : 's'}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-blue-500 mt-1">
                       {plannedItems} activit{plannedItems === 1 ? 'y' : 'ies'} added. Tap here to keep planning.
                     </p>
                   </div>
@@ -439,7 +448,7 @@ export default function Home() {
                       return (
                         <div
                           key={day.id}
-                          className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3"
+                          className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3"
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-800">
@@ -462,23 +471,23 @@ export default function Home() {
             <button
               type="button"
               onClick={() => navigate('/budget')}
-              className="travel-card w-full p-5 text-left"
+              className="w-full bg-white rounded-2xl shadow-sm p-5 text-left"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Wallet size={18} className="text-slate-900" />
-                  <span className="font-bold text-slate-900">Budget Overview</span>
+                  <Wallet size={18} className="text-green-500" />
+                  <span className="font-semibold text-gray-800">Budget Overview</span>
                 </div>
 
-                <span className="text-slate-500 text-sm flex items-center gap-1">
+                <span className="text-green-500 text-sm flex items-center gap-1">
                   Manage <ChevronRight size={14} />
                 </span>
               </div>
 
               {budget.length === 0 ? (
-                <div className="rounded-2xl bg-emerald-50 p-4">
-                  <p className="text-sm font-bold text-slate-900">No budget set yet</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                <div className="rounded-2xl bg-green-50 p-4">
+                  <p className="text-sm font-semibold text-green-700">No budget set yet</p>
+                  <p className="text-xs text-green-600 mt-1">
                     Add planned budgets or actual spending for flights, hotels, food, and more.
                   </p>
                 </div>
@@ -516,10 +525,10 @@ export default function Home() {
               )}
             </button>
 
-            <div className="travel-card p-5">
+            <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
-                <Users size={18} className="text-slate-900" />
-                <span className="font-bold text-slate-900">Travel Members</span>
+                <Users size={18} className="text-rose-500" />
+                <span className="font-semibold text-gray-800">Travel Members</span>
               </div>
 
               {(trip.members || []).length === 0 ? (
@@ -541,7 +550,6 @@ export default function Home() {
             </div>
           </>
         )}
-        </div>
       </div>
 
       {creating && (
@@ -598,7 +606,7 @@ export default function Home() {
               Members (comma-separated)
             </label>
             <input
-              className="travel-input"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
               value={formatMembers(createForm.members)}
               onChange={(event) =>
                 setCreateForm((form) => ({
@@ -613,7 +621,7 @@ export default function Home() {
           <button
             type="button"
             onClick={saveNewTrip}
-            className="w-full travel-pill py-3 font-semibold text-sm"
+            className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm"
           >
             Save Trip
           </button>
@@ -671,7 +679,7 @@ export default function Home() {
               Members (comma-separated)
             </label>
             <input
-              className="travel-input"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
               value={formatMembers(editForm.members || [])}
               onChange={(event) =>
                 setEditForm((form) => ({
@@ -686,7 +694,7 @@ export default function Home() {
           <button
             type="button"
             onClick={saveEditTrip}
-            className="w-full travel-pill py-3 font-semibold text-sm"
+            className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm"
           >
             Save Changes
           </button>
