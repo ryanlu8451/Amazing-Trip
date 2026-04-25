@@ -1,6 +1,7 @@
 import { AlertTriangle, Loader2, Mail, Plane, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { getBrowserEnvironment, getExternalBrowserName } from '../lib/browser'
+import { useTranslation } from '../lib/i18n'
 
 export default function Login() {
   const {
@@ -8,6 +9,7 @@ export default function Login() {
     isConfigured,
     signInWithGoogle,
   } = useAuthStore()
+  const { t } = useTranslation()
   const browser = getBrowserEnvironment()
   const externalBrowserName = getExternalBrowserName()
   const currentUrl = window.location.href
@@ -23,10 +25,10 @@ export default function Login() {
           AMAZING TRIP
         </p>
         <h1 className="text-3xl font-bold text-gray-900 mt-2">
-          Sign in to plan and share trips
+          {t('login.title')}
         </h1>
         <p className="text-sm text-gray-500 mt-3">
-          Use your Google account to access your travel plans. This also prepares the app for future trip sharing with other users.
+          {t('login.subtitle')}
         </p>
 
         {browser.isEmbeddedBrowser && (
@@ -35,10 +37,10 @@ export default function Login() {
               <AlertTriangle size={19} className="text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-amber-900">
-                  Open in {externalBrowserName} to sign in
+                  {t('login.openExternal', { browser: externalBrowserName })}
                 </p>
                 <p className="text-xs text-amber-800 mt-1">
-                  Google blocks login inside some in-app browsers like LINE, Instagram, Facebook, Gmail, and Google App.
+                  {t('login.embeddedWarning')}
                 </p>
                 <p className="text-xs text-amber-800 mt-2 break-all">
                   {currentUrl}
@@ -53,10 +55,10 @@ export default function Login() {
             <ShieldCheck size={18} className="text-green-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-gray-800">
-                Secure Google login
+                {t('login.secureTitle')}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Firebase Authentication handles Gmail and Google account sign-in.
+                {t('login.secureBody')}
               </p>
             </div>
           </div>
@@ -65,10 +67,10 @@ export default function Login() {
             <Mail size={18} className="text-blue-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-gray-800">
-                Ready for sharing
+                {t('login.sharingTitle')}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                User email and profile data can later power invite links and permissions.
+                {t('login.sharingBody')}
               </p>
             </div>
           </div>
@@ -77,10 +79,10 @@ export default function Login() {
         {!isConfigured && (
           <div className="mt-5 rounded-2xl bg-amber-50 border border-amber-100 p-4">
             <p className="text-sm font-semibold text-amber-800">
-              Firebase setup needed
+              {t('login.firebaseNeededTitle')}
             </p>
             <p className="text-xs text-amber-700 mt-1">
-              Copy `.env.example` to `.env.local`, paste your Firebase web config, and enable Google as a sign-in provider in Firebase Console.
+              {t('login.firebaseNeededBody')}
             </p>
           </div>
         )}
@@ -100,12 +102,12 @@ export default function Login() {
           {isConfigured && !browser.isEmbeddedBrowser ? (
             <>
               <Mail size={17} />
-              Continue with Google
+              {t('login.continue')}
             </>
           ) : (
             <>
               <Loader2 size={17} />
-              Waiting for Firebase config
+              {t('login.waiting')}
             </>
           )}
         </button>

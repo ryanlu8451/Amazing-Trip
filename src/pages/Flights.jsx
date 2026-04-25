@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   ListFilter,
+  Lock,
   MapPin,
   MoreHorizontal,
   Pencil,
@@ -19,6 +20,9 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
+import { useAuthStore } from '../store/authStore'
+import { canEditTrip } from '../lib/tripCloud'
+import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
 
@@ -93,11 +97,11 @@ const AIRPORT_TIPS = [
   },
 ]
 
-function getDirectionLabel(direction) {
+function getDirectionLabel(direction, t) {
   const legacyDirection = {
-    去程: 'Outbound',
-    回程: 'Return',
-    轉機: 'Transfer',
+    去程: t('flights.direction.outbound'),
+    回程: t('flights.direction.return'),
+    轉機: t('flights.direction.transfer'),
   }
 
   if (legacyDirection[direction]) {
@@ -105,7 +109,7 @@ function getDirectionLabel(direction) {
   }
 
   const option = DIRECTION_OPTIONS.find((item) => item.value === direction)
-  return option ? option.label : 'Flight'
+  return option ? t(`flights.direction.${option.value}`) : t('flights.flight')
 }
 
 function getStatusStyle(status) {
@@ -120,21 +124,21 @@ function getStatusStyle(status) {
   return 'bg-amber-100 text-amber-700'
 }
 
-function getStatusLabel(status) {
+function getStatusLabel(status, t) {
   if (status === 'confirmed') {
-    return 'Confirmed'
+    return t('common.confirmed')
   }
 
   if (status === 'cancelled') {
-    return 'Cancelled'
+    return t('common.cancelled')
   }
 
-  return 'Pending'
+  return t('common.pending')
 }
 
-function formatDisplayDate(date) {
+function formatDisplayDate(date, t) {
   if (!date) {
-    return 'No date'
+    return t('common.noDate')
   }
 
   const parsedDate = new Date(`${date}T00:00:00`)
@@ -327,6 +331,9 @@ export default function Flights() {
     deleteFlight,
   } = useTripStore()
 
+  const { user } = useAuthStore()
+  const { t } = useTranslation()
+
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(emptyFlight)
   const [error, setError] = useState('')
@@ -337,6 +344,7 @@ export default function Flights() {
   const [openActionsFlightKey, setOpenActionsFlightKey] = useState('')
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
+  const userCanEdit = canEditTrip(selectedTrip, user)
   const selectedFlights = sortFlightsByDate(selectedTrip?.flights || [])
   const visibleFlights = selectedFlights.filter((flight) =>
     shouldShowFlight(flight, showHiddenFlights, showCompletedFlights)
@@ -358,6 +366,11 @@ export default function Flights() {
       return
     }
 
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     setActiveTrip(selectedTrip.id)
     setForm(emptyFlight)
     setError('')
@@ -370,6 +383,11 @@ export default function Flights() {
 
   const openEdit = (flight) => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -421,8 +439,13 @@ export default function Flights() {
   }
 
   const save = () => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     if (isRequiredFlightInfoMissing(form)) {
-      setError('Please complete airline, flight number, route, date, and flight times.')
+      setError(t('flights.required'))
       return
     }
 
@@ -458,7 +481,12 @@ export default function Flights() {
       return
     }
 
-    const confirmed = window.confirm('Delete this flight? This action cannot be undone.')
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
+    const confirmed = window.confirm(t('flights.deleteConfirm'))
 
     if (confirmed) {
       setActiveTrip(selectedTrip.id)
@@ -482,6 +510,11 @@ export default function Flights() {
       return
     }
 
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     setActiveTrip(selectedTrip.id)
     updateFlight(flight.id, {
       ...emptyFlight,
@@ -494,6 +527,11 @@ export default function Flights() {
 
   const toggleFlightCompleted = (flight) => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -513,12 +551,12 @@ export default function Flights() {
         <div className="max-w-lg mx-auto relative w-full">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-blue-200 text-sm">AMAZING TRIP</p>
+              <p className="text-blue-200 text-sm">{t('common.amazingTrip')}</p>
               <h1 className="text-white text-2xl font-bold mt-1">
-                Flight Management
+                {t('flights.title')}
               </h1>
               <p className="text-blue-100 text-sm mt-1">
-                Select one trip and manage only that trip&apos;s flights.
+                {t('flights.subtitle')}
               </p>
             </div>
 
@@ -561,7 +599,7 @@ export default function Flights() {
                   ) : (
                     <EyeOff size={16} className="text-gray-400" />
                   )}
-                  <span className="text-sm text-gray-700">Show Hidden</span>
+                  <span className="text-sm text-gray-700">{t('flights.showHidden')}</span>
                 </div>
                 <span className="text-xs text-gray-400">{hiddenFlightCount}</span>
               </button>
@@ -573,7 +611,7 @@ export default function Flights() {
               >
                 <div className="flex items-center gap-2">
                   <ListFilter size={16} className="text-green-500" />
-                  <span className="text-sm text-gray-700">Show Completed</span>
+                  <span className="text-sm text-gray-700">{t('flights.showCompleted')}</span>
                 </div>
                 <span className="text-xs text-gray-400">{completedFlightCount}</span>
               </button>
@@ -595,13 +633,13 @@ export default function Flights() {
             className="mt-4 w-full bg-white/20 rounded-2xl px-4 py-3 flex items-center justify-between text-left"
           >
             <div className="min-w-0">
-              <p className="text-xs text-blue-100">Currently Viewing</p>
+              <p className="text-xs text-blue-100">{t('common.currentlyViewing')}</p>
               <p className="text-white text-sm font-semibold truncate mt-0.5">
                 {selectedTrip
                   ? `${selectedTrip.coverEmoji || '🌍'} ${
-                      selectedTrip.name || selectedTrip.destination || 'Untitled Trip'
+                      selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')
                     }`
-                  : 'Select a trip'}
+                  : t('common.selectTrip')}
               </p>
             </div>
 
@@ -620,10 +658,10 @@ export default function Flights() {
               {trips.length === 0 ? (
                 <div className="px-4 py-5 text-center">
                   <p className="text-sm font-medium text-gray-500">
-                    No trips available
+                    {t('common.noTripsAvailable')}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Create a trip first from Home or Trip Management.
+                    {t('common.createTripFirst')}
                   </p>
                 </div>
               ) : (
@@ -646,7 +684,7 @@ export default function Flights() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-gray-800 truncate">
-                            {trip.name || trip.destination || 'Untitled Trip'}
+                            {trip.name || trip.destination || t('common.untitledTrip')}
                           </p>
 
                           {isSelected && (
@@ -683,57 +721,73 @@ export default function Flights() {
           </div>
         ) : (
           <>
+            {!userCanEdit && selectedTrip && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                <Lock size={18} className="text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {t('common.viewOnlyFlights', {
+                    role: t(`common.${selectedTrip.memberRoles?.[user?.email?.toLowerCase()] || 'viewer'}`),
+                  })}
+                </p>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs text-gray-400">Selected Trip</p>
+                  <p className="text-xs text-gray-400">{t('common.selectedTrip')}</p>
 
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-3xl">{selectedTrip.coverEmoji || '🌍'}</span>
 
                     <div className="min-w-0">
                       <h2 className="font-bold text-gray-800 truncate">
-                        {selectedTrip.name || selectedTrip.destination || 'Untitled Trip'}
+                        {selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')}
                       </h2>
                       <p className="text-xs text-gray-500 truncate">
-                        {selectedTrip.destination || 'No destination'}
+                        {selectedTrip.destination || t('common.noDestination')}
                       </p>
                     </div>
                   </div>
 
                   <p className="text-xs text-gray-400 mt-3">
-                    {selectedTrip.startDate || 'Start date'} →{' '}
-                    {selectedTrip.endDate || 'End date'}
+                    {selectedTrip.startDate || t('common.startDate')} →{' '}
+                    {selectedTrip.endDate || t('common.endDate')}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={openAdd}
-                  className="bg-blue-500 text-white rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0"
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                    userCanEdit
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={14} />
-                  Flight
+                  {t('flights.flight')}
                 </button>
               </div>
 
               <div className="grid grid-cols-3 gap-3 mt-5">
                 <div className="rounded-2xl bg-blue-50 p-3">
-                  <p className="text-xs text-blue-500">Flights</p>
+                  <p className="text-xs text-blue-500">{t('flights.totalFlights')}</p>
                   <p className="text-xl font-bold text-blue-700 mt-1">
                     {selectedFlights.length}
                   </p>
                 </div>
 
                 <div className="rounded-2xl bg-green-50 p-3">
-                  <p className="text-xs text-green-500">Confirmed</p>
+                  <p className="text-xs text-green-500">{t('common.confirmed')}</p>
                   <p className="text-xl font-bold text-green-700 mt-1">
                     {getTripConfirmedFlightCount(selectedTrip)}
                   </p>
                 </div>
 
                 <div className="rounded-2xl bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Cost</p>
+                  <p className="text-xs text-gray-500">{t('hotels.cost')}</p>
                   <p className="text-sm font-bold text-gray-800 mt-1">
                     {formatTripTotal(selectedFlightTotal, selectedCurrencyLabel)}
                   </p>
@@ -748,27 +802,32 @@ export default function Flights() {
                 </div>
 
                 <h2 className="font-semibold text-gray-800">
-                  No flights for this trip yet
+                  {t('flights.noFlightsTitle')}
                 </h2>
                 <p className="text-sm text-gray-400 mt-2">
-                  Add outbound, return, domestic, or transfer flights for this selected trip.
+                  {t('flights.noFlightsBody')}
                 </p>
 
                 <button
                   type="button"
                   onClick={openAdd}
-                  className="mt-5 bg-blue-500 text-white rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2"
+                  disabled={!userCanEdit}
+                  className={`mt-5 rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2 ${
+                    userCanEdit
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={16} />
-                  Add First Flight
+                  {t('flights.addFirst')}
                 </button>
               </div>
             ) : visibleFlights.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
                 <EyeOff size={30} className="text-gray-300 mx-auto mb-4" />
-                <h2 className="font-semibold text-gray-800">No visible flights</h2>
+                <h2 className="font-semibold text-gray-800">{t('flights.noVisibleTitle')}</h2>
                 <p className="text-sm text-gray-400 mt-2">
-                  Use the top-right options to show hidden or completed flights.
+                  {t('flights.noVisibleBody')}
                 </p>
               </div>
             ) : (
@@ -791,7 +850,7 @@ export default function Flights() {
                         flight.isHidden ? 'opacity-50' : ''
                       }`}
                     >
-                      {isActionsOpen && (
+                      {isActionsOpen && userCanEdit && (
                         <div className="grid grid-cols-4 text-xs font-semibold text-white">
                           <button
                             type="button"
@@ -799,7 +858,7 @@ export default function Flights() {
                             className="bg-blue-500 py-3 flex flex-col items-center gap-1"
                           >
                             <Pencil size={15} />
-                            Edit
+                            {t('common.edit')}
                           </button>
 
                           <button
@@ -808,7 +867,7 @@ export default function Flights() {
                             className="bg-slate-500 py-3 flex flex-col items-center gap-1"
                           >
                             {flight.isHidden ? <Eye size={15} /> : <EyeOff size={15} />}
-                            {flight.isHidden ? 'Show' : 'Hide'}
+                            {flight.isHidden ? t('common.show') : t('common.hide')}
                           </button>
 
                           <button
@@ -821,7 +880,7 @@ export default function Flights() {
                             ) : (
                               <CheckCircle2 size={15} />
                             )}
-                            {flight.isCompleted ? 'Reopen' : 'Done'}
+                            {flight.isCompleted ? t('common.reopen') : t('common.done')}
                           </button>
 
                           <button
@@ -830,7 +889,7 @@ export default function Flights() {
                             className="bg-red-500 py-3 flex flex-col items-center gap-1"
                           >
                             <Trash2 size={15} />
-                            Delete
+                            {t('common.delete')}
                           </button>
                         </div>
                       )}
@@ -839,30 +898,30 @@ export default function Flights() {
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-blue-700 font-semibold text-sm">
-                              {getDirectionLabel(flight.direction)}
+                              {getDirectionLabel(flight.direction, t)}
                             </span>
 
                             {flight.isCompleted && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                Completed
+                                {t('common.completed')}
                               </span>
                             )}
 
                             {isPast && !flight.isCompleted && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                                Past Date
+                                {t('flights.pastDate')}
                               </span>
                             )}
 
                             {flight.isHidden && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                                Hidden
+                                {t('common.hidden')}
                               </span>
                             )}
                           </div>
 
                           <p className="text-xs text-gray-400 mt-0.5">
-                            {formatDisplayDate(flight.date)}
+                            {formatDisplayDate(flight.date, t)}
                           </p>
                         </div>
 
@@ -872,7 +931,7 @@ export default function Flights() {
                               flight.status
                             )}`}
                           >
-                            {getStatusLabel(flight.status)}
+                            {getStatusLabel(flight.status, t)}
                           </span>
 
                           <button
@@ -892,16 +951,16 @@ export default function Flights() {
                               {flight.depTime || '--:--'}
                             </div>
                             <div className="text-xs text-gray-400 mt-1 truncate">
-                              {flight.fromAirport || 'Origin airport'}
+                              {flight.fromAirport || t('flights.originAirport')}
                             </div>
                             <div className="text-sm font-medium text-gray-600 truncate">
-                              {flight.fromCity || 'Origin'}
+                              {flight.fromCity || t('flights.origin')}
                             </div>
                           </div>
 
                           <div className="flex flex-col items-center flex-1 px-4">
                             <div className="text-xs text-gray-400 mb-1">
-                              {duration || 'Auto duration'}
+                              {duration || t('flights.autoDuration')}
                             </div>
 
                             <div className="flex items-center w-full">
@@ -911,7 +970,7 @@ export default function Flights() {
                             </div>
 
                             <div className="text-xs text-gray-400 mt-1">
-                              {flight.code || 'Flight No.'}
+                              {flight.code || t('flights.flightNo')}
                             </div>
                           </div>
 
@@ -920,10 +979,10 @@ export default function Flights() {
                               {flight.arrTime || '--:--'}
                             </div>
                             <div className="text-xs text-gray-400 mt-1 truncate">
-                              {flight.toAirport || 'Arrival airport'}
+                              {flight.toAirport || t('flights.arrivalAirport')}
                             </div>
                             <div className="text-sm font-medium text-gray-600 truncate">
-                              {flight.toCity || 'Arrival'}
+                              {flight.toCity || t('flights.arrival')}
                             </div>
                           </div>
                         </div>
@@ -932,17 +991,17 @@ export default function Flights() {
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <Ticket size={14} />
-                              <span className="text-xs">Airline</span>
+                              <span className="text-xs">{t('flights.airline')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {flight.airline || 'Not set'}
+                              {flight.airline || t('common.notSet')}
                             </p>
                           </div>
 
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <DollarSign size={14} />
-                              <span className="text-xs">Flight Cost</span>
+                              <span className="text-xs">{t('flights.flightCost')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
                               {formatMoney(flight.price, flight.currency)}
@@ -952,41 +1011,41 @@ export default function Flights() {
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <ShieldCheck size={14} />
-                              <span className="text-xs">Seat</span>
+                              <span className="text-xs">{t('flights.seat')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {flight.seat || 'Not set'}
+                              {flight.seat || t('common.notSet')}
                             </p>
                           </div>
 
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <MapPin size={14} />
-                              <span className="text-xs">Terminal / Gate</span>
+                              <span className="text-xs">{t('flights.terminalGate')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
                               {flight.terminal || 'TBD'}
-                              {flight.gate ? ` · Gate ${flight.gate}` : ''}
+                              {flight.gate ? ` · ${t('flights.gatePrefix')} ${flight.gate}` : ''}
                             </p>
                           </div>
 
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <CalendarDays size={14} />
-                              <span className="text-xs">Arrival Date</span>
+                              <span className="text-xs">{t('flights.arrivalDate')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {flight.arrDate || flight.date || 'Not set'}
+                              {flight.arrDate || flight.date || t('common.notSet')}
                             </p>
                           </div>
 
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <Ticket size={14} />
-                              <span className="text-xs">Booking Ref</span>
+                              <span className="text-xs">{t('flights.bookingRefShort')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {flight.bookingRef || 'Not set'}
+                              {flight.bookingRef || t('common.notSet')}
                             </p>
                           </div>
                         </div>
@@ -994,7 +1053,7 @@ export default function Flights() {
                         {flight.note && (
                           <div className="mt-3 rounded-xl bg-amber-50 p-3">
                             <p className="text-xs font-medium text-amber-700 mb-1">
-                              Note
+                              {t('flights.note')}
                             </p>
                             <p className="text-sm text-amber-800">{flight.note}</p>
                           </div>
@@ -1010,7 +1069,7 @@ export default function Flights() {
               <div className="bg-white rounded-2xl shadow-sm p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Clock size={18} className="text-blue-500" />
-                  <h2 className="font-semibold text-gray-800">Airport Checklist</h2>
+                  <h2 className="font-semibold text-gray-800">{t('flights.airportChecklist')}</h2>
                 </div>
 
                 <div className="space-y-3">
@@ -1019,8 +1078,8 @@ export default function Flights() {
                       <span className="text-xl">{tip.icon}</span>
 
                       <div>
-                        <p className="text-sm font-medium text-gray-800">{tip.title}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{tip.desc}</p>
+                        <p className="text-sm font-medium text-gray-800">{t(`flights.tip.${tip.title.toLowerCase()}`)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{t(`flights.tip.${tip.title.toLowerCase()}Body`)}</p>
                       </div>
                     </div>
                   ))}
@@ -1033,7 +1092,7 @@ export default function Flights() {
 
       {modal && (
         <EditModal
-          title={modal.mode === 'add' ? 'Add Flight' : 'Edit Flight'}
+          title={modal.mode === 'add' ? t('flights.addBooking') : t('flights.editBooking')}
           onClose={closeModal}
         >
           {error && (
@@ -1043,22 +1102,25 @@ export default function Flights() {
           )}
 
           <SelectField
-            label="Flight Type"
+            label={t('flights.direction')}
             value={form.direction}
             onChange={updateForm('direction')}
-            options={DIRECTION_OPTIONS}
+            options={DIRECTION_OPTIONS.map((option) => ({
+              ...option,
+              label: t(`flights.direction.${option.value}`),
+            }))}
           />
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="Airline"
+              label={t('flights.airline')}
               value={form.airline}
               onChange={updateForm('airline')}
               placeholder="Air Canada"
             />
 
             <InputField
-              label="Flight Number"
+              label={t('flights.flightNumber')}
               value={form.code}
               onChange={updateForm('code')}
               placeholder="AC123"
@@ -1067,14 +1129,14 @@ export default function Flights() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="From City"
+              label={t('flights.fromCity')}
               value={form.fromCity}
               onChange={updateForm('fromCity')}
               placeholder="Toronto"
             />
 
             <InputField
-              label="From Airport"
+              label={t('flights.fromAirport')}
               value={form.fromAirport}
               onChange={updateForm('fromAirport')}
               placeholder="YYZ"
@@ -1083,14 +1145,14 @@ export default function Flights() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="To City"
+              label={t('flights.toCity')}
               value={form.toCity}
               onChange={updateForm('toCity')}
               placeholder="Tokyo"
             />
 
             <InputField
-              label="To Airport"
+              label={t('flights.toAirport')}
               value={form.toAirport}
               onChange={updateForm('toAirport')}
               placeholder="NRT"
@@ -1099,14 +1161,14 @@ export default function Flights() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="Departure Date"
+              label={t('flights.departureDate')}
               type="date"
               value={form.date}
               onChange={updateForm('date')}
             />
 
             <InputField
-              label="Arrival Date"
+              label={t('flights.arrivalDate')}
               type="date"
               value={form.arrDate}
               onChange={updateForm('arrDate')}
@@ -1115,14 +1177,14 @@ export default function Flights() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="Departure Time"
+              label={t('flights.departureTime')}
               type="time"
               value={form.depTime}
               onChange={updateForm('depTime')}
             />
 
             <InputField
-              label="Arrival Time"
+              label={t('flights.arrivalTime')}
               type="time"
               value={form.arrTime}
               onChange={updateForm('arrTime')}
@@ -1131,26 +1193,26 @@ export default function Flights() {
 
           <div className="mb-4 rounded-xl bg-blue-50 px-4 py-3">
             <p className="text-xs font-medium text-blue-600 mb-1">
-              Auto Duration
+              {t('flights.autoDurationTitle')}
             </p>
             <p className="text-sm font-semibold text-blue-800">
-              {form.duration || 'Enter departure and arrival time to calculate.'}
+              {form.duration || t('flights.durationHint')}
             </p>
             <p className="text-xs text-blue-500 mt-1">
-              If Arrival Date is empty and arrival time is earlier than departure time, the app treats it as next day.
+              {t('flights.durationBody')}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <SelectField
-              label="Currency"
+              label={t('flights.currency')}
               value={form.currency}
               onChange={updateForm('currency')}
               options={CURRENCY_OPTIONS}
             />
 
             <InputField
-              label="Flight Cost"
+              label={t('flights.flightCost')}
               type="number"
               value={form.price}
               onChange={updateForm('price')}
@@ -1160,14 +1222,14 @@ export default function Flights() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="Terminal"
+              label={t('flights.terminal')}
               value={form.terminal}
               onChange={updateForm('terminal')}
               placeholder="Terminal 1"
             />
 
             <InputField
-              label="Gate"
+              label={t('flights.gate')}
               value={form.gate}
               onChange={updateForm('gate')}
               placeholder="A12"
@@ -1175,28 +1237,42 @@ export default function Flights() {
           </div>
 
           <SelectField
-            label="Seat Class"
+            label={t('flights.seatClass')}
             value={form.seat}
             onChange={updateForm('seat')}
-            options={SEAT_OPTIONS}
+            options={SEAT_OPTIONS.map((option) => {
+              const seatKey = {
+                Economy: 'economy',
+                'Premium Economy': 'premium',
+                Business: 'business',
+                'First Class': 'first',
+              }[option.value]
+              return {
+                ...option,
+                label: t(`flights.seat.${seatKey}`),
+              }
+            })}
           />
 
           <InputField
-            label="Booking Reference"
+            label={t('flights.bookingRef')}
             value={form.bookingRef}
             onChange={updateForm('bookingRef')}
             placeholder="ABC123"
           />
 
           <SelectField
-            label="Booking Status"
+            label={t('flights.status')}
             value={form.status}
             onChange={updateForm('status')}
-            options={STATUS_OPTIONS}
+            options={STATUS_OPTIONS.map((option) => ({
+              ...option,
+              label: t(`common.${option.value}`),
+            }))}
           />
 
           <InputField
-            label="Notes"
+            label={t('flights.note')}
             value={form.note}
             onChange={updateForm('note')}
             placeholder="Baggage, check-in reminder, meal request..."
@@ -1207,7 +1283,7 @@ export default function Flights() {
             onClick={save}
             className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            {modal.mode === 'add' ? 'Save Flight' : 'Save Changes'}
+            {modal.mode === 'add' ? t('flights.saveBooking') : t('common.saveChanges')}
           </button>
         </EditModal>
       )}

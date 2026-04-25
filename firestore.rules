@@ -3,22 +3,55 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /trips/{tripId} {
-      allow read: if request.auth != null
-        && request.auth.token.email in resource.data.memberEmails;
+      // Helper function to normalize email for comparison
+      function normalizeEmail(email) {
+        return email.lower();
+      }
+
+      // Get the authenticated user's normalized email
+      function userEmail() {
+        return request.auth.token.email;
+      }
+
+      // Check if user is a member of the trip
+      function isMember() {
+        return request.auth != null && userEmail() in resource.data.memberEmails;
+      }
+
+      // Check if user can edit (owner or editor role)
+      function canEdit() {
+        let role = resource.data.memberRoles[userEmail()];
+        return role == 'owner' || role == 'editor';
+      }
+
+      // Check if user is the owner
+      function isOwner() {
+        return resource.data.ownerId == request.auth.uid;
+      }
+
+      // Editors can update trip content, but cannot change ownership or membership.
+      function keepsMembershipStable() {
+        return request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.ownerEmail == resource.data.ownerEmail
+          && request.resource.data.memberEmails == resource.data.memberEmails
+          && request.resource.data.memberRoles == resource.data.memberRoles;
+      }
+
+      allow read: if request.auth != null && isMember();
 
       allow create: if request.auth != null
-        && request.auth.token.email in request.resource.data.memberEmails
+        && userEmail() in request.resource.data.memberEmails
         && request.resource.data.ownerId == request.auth.uid;
 
       allow update: if request.auth != null
-        && request.auth.token.email in resource.data.memberEmails
+        && isMember()
         && (
-          resource.data.ownerId == request.auth.uid
-          || resource.data.memberRoles[request.auth.token.email] in ['owner', 'editor']
+          isOwner()
+          || (canEdit() && keepsMembershipStable())
         );
 
       allow delete: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+        && isOwner();
     }
   }
 }

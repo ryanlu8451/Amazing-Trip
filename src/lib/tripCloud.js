@@ -57,12 +57,40 @@ export function canEditTrip(trip, user) {
     return false
   }
 
+  if (!trip.ownerId && !trip.ownerEmail) {
+    return true
+  }
+
   if (trip.ownerId === user?.uid || normalizeEmail(trip.ownerEmail) === userEmail) {
     return true
   }
 
   const role = trip.memberRoles?.[userEmail]
   return role === 'owner' || role === 'editor'
+}
+
+export function canDeleteTrip(trip, user) {
+  const userEmail = normalizeEmail(user?.email)
+
+  if (!trip || !user?.uid || !userEmail) {
+    return false
+  }
+
+  if (!trip.ownerId && !trip.ownerEmail) {
+    return true
+  }
+
+  return trip.ownerId === user.uid || normalizeEmail(trip.ownerEmail) === userEmail
+}
+
+export const canManageTripMembers = canDeleteTrip
+
+export function canSaveTripToCloud(trip, user) {
+  if (!trip?.ownerId && !trip?.ownerEmail) {
+    return true
+  }
+
+  return canEditTrip(trip, user)
 }
 
 export async function saveTripToCloud(trip, user) {

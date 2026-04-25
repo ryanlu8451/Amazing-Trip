@@ -1,23 +1,25 @@
-import { Home, Calendar, Plane, Hotel, Wallet, Info } from 'lucide-react'
+import { Home, Calendar, Plane, Hotel, Wallet, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
-
-const NAV_ITEMS = [
-  { path: '/',          label: '首頁',   icon: Home },
-  { path: '/timeline',  label: '行程',   icon: Calendar },
-  { path: '/flights',   label: '機票',   icon: Plane },
-  { path: '/hotels',    label: '住宿',   icon: Hotel },
-  { path: '/budget',    label: '預算',   icon: Wallet },
-  { path: '/tips',      label: '注意',   icon: Info },
-]
+import { useTranslation } from '../lib/i18n'
 
 export default function Navbar() {
   const location = useLocation()
+  const { t } = useTranslation()
+
+  const navItems = [
+    { path: '/', label: t('nav.home'), icon: Home },
+    { path: '/timeline', label: t('nav.timeline'), icon: Calendar },
+    { path: '/flights', label: t('nav.flights'), icon: Plane },
+    { path: '/hotels', label: t('nav.hotels'), icon: Hotel },
+    { path: '/budget', label: t('nav.budget'), icon: Wallet },
+    { path: '/settings', label: t('nav.settings'), icon: Settings },
+  ]
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-lg z-50">
       <div className="max-w-lg mx-auto flex justify-around items-center py-2">
-        {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
-          const active = location.pathname === path
+        {navItems.map(({ path, label, icon: Icon }) => {
+          const active = location.pathname === path || (path === '/settings' && location.pathname === '/tips')
           return (
             <Link
               key={path}

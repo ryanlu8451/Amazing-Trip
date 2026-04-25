@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
+import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField } from '../components/InputField'
 
@@ -27,9 +28,9 @@ const emptyTripForm = {
   members: [],
 }
 
-function CountdownBadge({ startDate }) {
+function CountdownBadge({ startDate, t }) {
   if (!startDate) {
-    return <div className="text-white text-xl font-bold">Start planning ✨</div>
+    return <div className="text-white text-xl font-bold">{t('home.startPlanning')}</div>
   }
 
   const today = new Date()
@@ -43,17 +44,17 @@ function CountdownBadge({ startDate }) {
       <div className="text-center">
         <div className="text-5xl font-bold text-white">{days}</div>
         <div className="text-white/80 text-sm mt-1">
-          {days === 1 ? 'day to go' : 'days to go'}
+          {days === 1 ? t('home.dayToGo') : t('home.daysToGo')}
         </div>
       </div>
     )
   }
 
   if (days === 0) {
-    return <div className="text-white text-xl font-bold">🎉 Departing today!</div>
+    return <div className="text-white text-xl font-bold">{t('home.departingToday')}</div>
   }
 
-  return <div className="text-white text-xl font-bold">In progress / started ✈️</div>
+  return <div className="text-white text-xl font-bold">{t('home.inProgress')}</div>
 }
 
 function getTripDays(startDate, endDate) {
@@ -131,6 +132,7 @@ export default function Home() {
     updateTrip,
   } = useTripStore()
   const { user, logOut } = useAuthStore()
+  const { t } = useTranslation()
 
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -165,12 +167,12 @@ export default function Home() {
 
   const saveNewTrip = () => {
     if (!createForm.name || !createForm.destination) {
-      setCreateError('Please enter a trip name and destination.')
+      setCreateError(t('home.tripNameRequired'))
       return
     }
 
     if (!isDateRangeValid(createForm.startDate, createForm.endDate)) {
-      setCreateError('End date cannot be earlier than start date.')
+      setCreateError(t('home.endDateInvalid'))
       return
     }
 
@@ -186,12 +188,12 @@ export default function Home() {
 
   const saveEditTrip = () => {
     if (!editForm.name || !editForm.destination) {
-      setEditError('Please enter a trip name and destination.')
+      setEditError(t('home.tripNameRequired'))
       return
     }
 
     if (!isDateRangeValid(editForm.startDate, editForm.endDate)) {
-      setEditError('End date cannot be earlier than start date.')
+      setEditError(t('home.endDateInvalid'))
       return
     }
 
@@ -201,7 +203,7 @@ export default function Home() {
 
   const removeTrip = (tripId) => {
     const confirmed = window.confirm(
-      'Delete this trip? Flights, hotels, budget, and schedules under this trip will also be deleted.'
+      t('home.deleteConfirm')
     )
 
     if (confirmed) {
@@ -241,10 +243,12 @@ export default function Home() {
             <div>
               <p className="text-blue-200 text-sm font-medium tracking-wide">AMAZING TRIP</p>
               <h1 className="text-white text-2xl font-bold mt-1">
-                Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋
+                {t('home.welcome', {
+                  firstName: user?.name ? `, ${user.name.split(' ')[0]}` : '',
+                })}
               </h1>
               <p className="text-blue-100 text-sm mt-1">
-                Plan, organize, and share every trip in one place.
+                {t('home.subtitle')}
               </p>
             </div>
 
@@ -275,7 +279,7 @@ export default function Home() {
 
               <div className="min-w-0">
                 <p className="text-white text-sm font-semibold truncate">
-                  {user.name || 'Signed in'}
+                  {user.name || t('home.signedIn')}
                 </p>
                 <p className="text-blue-100 text-xs truncate">
                   {user.email}
@@ -292,18 +296,20 @@ export default function Home() {
                     <span className="text-4xl">{trip.coverEmoji}</span>
                     <div>
                       <h2 className="text-white text-xl font-bold">
-                        {trip.name || trip.destination || 'Untitled Trip'}
+                        {trip.name || trip.destination || t('home.untitledTrip')}
                       </h2>
                       <p className="text-blue-100 text-sm flex items-center gap-1 mt-1">
                         <MapPin size={14} />
-                        {trip.destination || 'No destination yet'}
+                        {trip.destination || t('home.noDestination')}
                       </p>
                     </div>
                   </div>
 
                   <p className="text-blue-100 text-sm mt-3">
-                    {trip.startDate || 'Start date'} → {trip.endDate || 'End date'}
-                    {tripDays > 0 ? ` · ${tripDays} ${tripDays === 1 ? 'day' : 'days'}` : ''}
+                    {trip.startDate || t('home.startDate')} → {trip.endDate || t('home.endDate')}
+                    {tripDays > 0
+                      ? ` · ${tripDays} ${tripDays === 1 ? t('home.day') : t('home.days')}`
+                      : ''}
                   </p>
                 </div>
 
@@ -318,7 +324,7 @@ export default function Home() {
               </div>
 
               <div className="text-center pt-2">
-                <CountdownBadge startDate={trip.startDate} />
+                <CountdownBadge startDate={trip.startDate} t={t} />
 
                 <div className="flex justify-center flex-wrap gap-2 mt-4">
                   {(trip.members || []).map((member) => (
@@ -337,16 +343,16 @@ export default function Home() {
                   className="mt-5 w-full bg-white text-blue-600 rounded-xl py-3 font-semibold text-sm flex items-center justify-center gap-2"
                 >
                   <Settings size={17} />
-                  Manage Trip Settings
+                  {t('home.manageTripSettings')}
                 </button>
               </div>
             </div>
           ) : (
             <div className="bg-white/15 rounded-2xl p-5 text-center backdrop-blur">
               <div className="text-5xl mb-3">🌍</div>
-              <h2 className="text-white text-xl font-bold">No trips yet</h2>
+              <h2 className="text-white text-xl font-bold">{t('home.noTripsTitle')}</h2>
               <p className="text-blue-100 text-sm mt-2">
-                Use the + button in My Trips below to create your first trip.
+                {t('home.noTripsBody')}
               </p>
             </div>
           )}
@@ -357,9 +363,9 @@ export default function Home() {
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-semibold text-gray-800">My Trips</h2>
+              <h2 className="font-semibold text-gray-800">{t('home.myTrips')}</h2>
               <p className="text-xs text-gray-400 mt-1">
-                Trips are sorted by departure date. Tap to select, double tap to open timeline.
+                {t('home.myTripsHint')}
               </p>
             </div>
 
@@ -375,9 +381,9 @@ export default function Home() {
 
           {sortedTrips.length === 0 ? (
             <div className="rounded-2xl bg-gray-50 p-6 text-center">
-              <p className="text-sm font-medium text-gray-500">No trips created yet.</p>
+              <p className="text-sm font-medium text-gray-500">{t('home.noTripsCreated')}</p>
               <p className="text-xs text-gray-400 mt-1">
-                Tap the + button above to start planning.
+                {t('home.tapPlus')}
               </p>
             </div>
           ) : (
@@ -403,7 +409,7 @@ export default function Home() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold text-gray-800 truncate">
-                              {item.name || item.destination || 'Untitled Trip'}
+                              {item.name || item.destination || t('home.untitledTrip')}
                             </h3>
 
                             {isActive && (
@@ -412,15 +418,15 @@ export default function Home() {
                           </div>
 
                           <p className="text-xs text-gray-500 mt-1 truncate">
-                            {item.destination || 'No destination'}
+                            {item.destination || t('home.noDestination')}
                           </p>
 
                           <p className="text-xs text-gray-400 mt-1">
-                            {item.startDate || 'Start date'} → {item.endDate || 'End date'}
+                            {item.startDate || t('home.startDate')} → {item.endDate || t('home.endDate')}
                           </p>
 
                           <p className="text-[11px] text-blue-400 mt-2">
-                            {isActive ? 'Selected · Double tap to open timeline' : 'Tap to select · Double tap to open timeline'}
+                            {isActive ? t('home.tapActive') : t('home.tapInactive')}
                           </p>
                         </div>
                       </button>
@@ -451,11 +457,11 @@ export default function Home() {
               <div className="flex items-center justify-between px-5 pt-5 pb-3">
                 <div className="flex items-center gap-2">
                   <Calendar size={18} className="text-blue-500" />
-                  <span className="font-semibold text-gray-800">Trip Timeline</span>
+                  <span className="font-semibold text-gray-800">{t('home.timeline')}</span>
                 </div>
 
                 <span className="text-blue-500 text-sm flex items-center gap-1">
-                  Manage <ChevronRight size={14} />
+                  {t('home.manage')} <ChevronRight size={14} />
                 </span>
               </div>
 
@@ -463,10 +469,10 @@ export default function Home() {
                 <div className="px-5 pb-5">
                   <div className="rounded-2xl bg-blue-50 p-4">
                     <p className="text-sm font-semibold text-blue-700">
-                      No daily schedule yet
+                      {t('home.noSchedule')}
                     </p>
                     <p className="text-xs text-blue-500 mt-1">
-                      Tap here to add daily activities, times, locations, and notes.
+                      {t('home.noScheduleBody')}
                     </p>
                   </div>
                 </div>
@@ -474,10 +480,16 @@ export default function Home() {
                 <div className="px-5 pb-5">
                   <div className="rounded-2xl bg-blue-50 p-4">
                     <p className="text-sm font-semibold text-blue-700">
-                      {plannedDays} planned day{plannedDays === 1 ? '' : 's'}
+                      {t('home.plannedDays', {
+                        count: plannedDays,
+                        unit: plannedDays === 1 ? t('home.day') : t('home.days'),
+                      })}
                     </p>
                     <p className="text-xs text-blue-500 mt-1">
-                      {plannedItems} activit{plannedItems === 1 ? 'y' : 'ies'} added. Tap here to keep planning.
+                      {t('home.activitiesAdded', {
+                        count: plannedItems,
+                        unit: plannedItems === 1 ? t('home.activity') : t('home.activities'),
+                      })}
                     </p>
                   </div>
 
@@ -492,11 +504,11 @@ export default function Home() {
                         >
                           <div>
                             <p className="text-sm font-medium text-gray-800">
-                              Day {day.day} · {day.title || 'Untitled Day'}
+                              Day {day.day} · {day.title || t('home.untitledTrip')}
                             </p>
                             <p className="text-xs text-gray-400">
-                              {day.date || 'No date'} · {itemCount}{' '}
-                              {itemCount === 1 ? 'activity' : 'activities'}
+                              {day.date || t('home.startDate')} · {itemCount}{' '}
+                              {itemCount === 1 ? t('home.activity') : t('home.activities')}
                             </p>
                           </div>
                           <ChevronRight size={16} className="text-gray-300" />
@@ -516,25 +528,25 @@ export default function Home() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Wallet size={18} className="text-green-500" />
-                  <span className="font-semibold text-gray-800">Budget Overview</span>
+                  <span className="font-semibold text-gray-800">{t('home.budgetOverview')}</span>
                 </div>
 
                 <span className="text-green-500 text-sm flex items-center gap-1">
-                  Manage <ChevronRight size={14} />
+                  {t('home.manage')} <ChevronRight size={14} />
                 </span>
               </div>
 
               {budget.length === 0 ? (
                 <div className="rounded-2xl bg-green-50 p-4">
-                  <p className="text-sm font-semibold text-green-700">No budget set yet</p>
+                  <p className="text-sm font-semibold text-green-700">{t('home.noBudget')}</p>
                   <p className="text-xs text-green-600 mt-1">
-                    Add planned budgets or actual spending for flights, hotels, food, and more.
+                    {t('home.noBudgetBody')}
                   </p>
                 </div>
               ) : (
                 <>
                   <p className="text-gray-400 text-sm mb-4">
-                    Budget Items Total: {Number(total || 0).toLocaleString()}
+                    {t('home.budgetItemsTotal')}: {Number(total || 0).toLocaleString()}
                   </p>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -568,11 +580,11 @@ export default function Home() {
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Users size={18} className="text-rose-500" />
-                <span className="font-semibold text-gray-800">Travel Members</span>
+                <span className="font-semibold text-gray-800">{t('home.travelMembers')}</span>
               </div>
 
               {(trip.members || []).length === 0 ? (
-                <p className="text-sm text-gray-400">No travel members added yet.</p>
+                <p className="text-sm text-gray-400">{t('home.noMembers')}</p>
               ) : (
                 <div className="flex gap-3 flex-wrap">
                   {(trip.members || []).map((member, index) => (
@@ -593,7 +605,7 @@ export default function Home() {
       </div>
 
       {creating && (
-        <EditModal title="Create Trip" onClose={() => setCreating(false)}>
+        <EditModal title={t('home.createTrip')} onClose={() => setCreating(false)}>
           {createError && (
             <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
               {createError}
@@ -601,28 +613,28 @@ export default function Home() {
           )}
 
           <InputField
-            label="Trip Name"
+            label={t('home.tripName')}
             value={createForm.name}
             onChange={(value) => setCreateForm((form) => ({ ...form, name: value }))}
             placeholder="Japan Trip"
           />
 
           <InputField
-            label="Destination"
+            label={t('home.destination')}
             value={createForm.destination}
             onChange={(value) => setCreateForm((form) => ({ ...form, destination: value }))}
             placeholder="Tokyo, Japan"
           />
 
           <InputField
-            label="Cover Emoji"
+            label={t('home.coverEmoji')}
             value={createForm.coverEmoji}
             onChange={(value) => setCreateForm((form) => ({ ...form, coverEmoji: value }))}
             placeholder="🌍"
           />
 
           <InputField
-            label="Start Date"
+            label={t('home.startDate')}
             type="date"
             value={createForm.startDate}
             onChange={(value) => {
@@ -632,7 +644,7 @@ export default function Home() {
           />
 
           <InputField
-            label="End Date"
+            label={t('home.endDate')}
             type="date"
             value={createForm.endDate}
             onChange={(value) => {
@@ -643,7 +655,7 @@ export default function Home() {
 
           <div className="mb-4">
             <label className="block text-xs font-medium text-gray-500 mb-1">
-              Members (comma-separated)
+              {t('home.membersComma')}
             </label>
             <input
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
@@ -663,13 +675,13 @@ export default function Home() {
             onClick={saveNewTrip}
             className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm"
           >
-            Save Trip
+            {t('home.saveTrip')}
           </button>
         </EditModal>
       )}
 
       {editing && (
-        <EditModal title="Edit Trip" onClose={() => setEditing(false)}>
+        <EditModal title={t('home.editTrip')} onClose={() => setEditing(false)}>
           {editError && (
             <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
               {editError}
@@ -677,25 +689,25 @@ export default function Home() {
           )}
 
           <InputField
-            label="Trip Name"
+            label={t('home.tripName')}
             value={editForm.name}
             onChange={(value) => setEditForm((form) => ({ ...form, name: value }))}
           />
 
           <InputField
-            label="Destination"
+            label={t('home.destination')}
             value={editForm.destination}
             onChange={(value) => setEditForm((form) => ({ ...form, destination: value }))}
           />
 
           <InputField
-            label="Cover Emoji"
+            label={t('home.coverEmoji')}
             value={editForm.coverEmoji}
             onChange={(value) => setEditForm((form) => ({ ...form, coverEmoji: value }))}
           />
 
           <InputField
-            label="Start Date"
+            label={t('home.startDate')}
             type="date"
             value={editForm.startDate}
             onChange={(value) => {
@@ -705,7 +717,7 @@ export default function Home() {
           />
 
           <InputField
-            label="End Date"
+            label={t('home.endDate')}
             type="date"
             value={editForm.endDate}
             onChange={(value) => {
@@ -716,7 +728,7 @@ export default function Home() {
 
           <div className="mb-4">
             <label className="block text-xs font-medium text-gray-500 mb-1">
-              Members (comma-separated)
+              {t('home.membersComma')}
             </label>
             <input
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
@@ -736,7 +748,7 @@ export default function Home() {
             onClick={saveEditTrip}
             className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm"
           >
-            Save Changes
+            {t('home.saveChanges')}
           </button>
         </EditModal>
       )}

@@ -11,11 +11,15 @@ import {
   CheckCircle2,
   X,
   EyeOff,
+  Lock,
   MoreHorizontal,
   RotateCcw,
   Eye,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
+import { useAuthStore } from '../store/authStore'
+import { canDeleteTrip, canEditTrip } from '../lib/tripCloud'
+import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
 
@@ -155,6 +159,8 @@ export default function Timeline() {
     updateTimelineItem,
     deleteTimelineItem,
   } = useTripStore()
+  const { user } = useAuthStore()
+  const { t } = useTranslation()
 
   const [creatingTrip, setCreatingTrip] = useState(false)
   const [editingTrip, setEditingTrip] = useState(false)
@@ -178,6 +184,8 @@ export default function Timeline() {
 
   const sortedTrips = sortTripsByStartDate(trips)
   const selectedTrip = trips.find((item) => item.id === activeTripId) || sortedTrips[0] || null
+  const userCanEdit = canEditTrip(selectedTrip, user)
+  const userCanDelete = canDeleteTrip(selectedTrip, user)
   const selectedTimeline = selectedTrip?.timeline || []
 
   const activePlannedDays = selectedTimeline.length
@@ -213,6 +221,11 @@ export default function Timeline() {
   }
 
   const openEditTrip = (targetTrip) => {
+    if (!canEditTrip(targetTrip, user)) {
+      setTripError(t('common.noEditPermission'))
+      return
+    }
+
     setActiveTrip(targetTrip.id)
 
     setTripForm({
@@ -279,12 +292,12 @@ export default function Timeline() {
 
   const saveNewTrip = () => {
     if (!tripForm.name || !tripForm.destination) {
-      setTripError('Please enter Trip Name and Destination.')
+      setTripError(t('timeline.tripRequired'))
       return
     }
 
     if (!isDateRangeValid(tripForm.startDate, tripForm.endDate)) {
-      setTripError('End Date cannot be earlier than Start Date.')
+      setTripError(t('timeline.invalidDates'))
       return
     }
 
@@ -298,13 +311,18 @@ export default function Timeline() {
   }
 
   const saveEditedTrip = () => {
+    if (!userCanEdit) {
+      setTripError(t('common.noEditPermission'))
+      return
+    }
+
     if (!tripForm.name || !tripForm.destination) {
-      setTripError('Please enter Trip Name and Destination.')
+      setTripError(t('timeline.tripRequired'))
       return
     }
 
     if (!isDateRangeValid(tripForm.startDate, tripForm.endDate)) {
-      setTripError('End Date cannot be earlier than Start Date.')
+      setTripError(t('timeline.invalidDates'))
       return
     }
 
@@ -313,8 +331,13 @@ export default function Timeline() {
   }
 
   const removeTrip = (tripId) => {
+    if (!userCanDelete) {
+      setTripError(t('common.ownerOnlyDelete'))
+      return
+    }
+
     const confirmed = window.confirm(
-      'Delete this trip? Flights, hotels, budget, and schedules under this trip will also be deleted.'
+      t('timeline.deleteTripConfirm')
     )
 
     if (confirmed) {
@@ -324,6 +347,11 @@ export default function Timeline() {
   }
 
   const toggleTripHidden = (targetTrip) => {
+    if (!canEditTrip(targetTrip, user)) {
+      setTripError(t('common.noEditPermission'))
+      return
+    }
+
     setActiveTrip(targetTrip.id)
     updateTrip({
       isHidden: !targetTrip.isHidden,
@@ -332,6 +360,11 @@ export default function Timeline() {
   }
 
   const toggleTripCompleted = (targetTrip) => {
+    if (!canEditTrip(targetTrip, user)) {
+      setTripError(t('common.noEditPermission'))
+      return
+    }
+
     setActiveTrip(targetTrip.id)
     updateTrip({
       status: targetTrip.status === 'completed' ? 'planning' : 'completed',
@@ -345,6 +378,11 @@ export default function Timeline() {
 
   const openAddDayCard = () => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setDayError(t('common.noEditPermission'))
       return
     }
 
@@ -366,6 +404,11 @@ export default function Timeline() {
   }
 
   const openEditDayCard = (day) => {
+    if (!userCanEdit) {
+      setDayError(t('common.noEditPermission'))
+      return
+    }
+
     if (selectedTrip) {
       setActiveTrip(selectedTrip.id)
     }
@@ -412,13 +455,18 @@ export default function Timeline() {
       return
     }
 
+    if (!userCanEdit) {
+      setDayError(t('common.noEditPermission'))
+      return
+    }
+
     if (!dayForm.day || !dayForm.date || !dayForm.title) {
-      setDayError('Please enter Day Number, Date, and Day Title.')
+      setDayError(t('timeline.dayRequired'))
       return
     }
 
     if (!isDayDateInsideTrip(selectedTrip.startDate, selectedTrip.endDate, dayForm.date)) {
-      setDayError('This date is outside the trip date range.')
+      setDayError(t('timeline.dayOutsideRange'))
       return
     }
 
@@ -447,6 +495,11 @@ export default function Timeline() {
   }
 
   const openAddItem = (dayId) => {
+    if (!userCanEdit) {
+      setItemError(t('common.noEditPermission'))
+      return
+    }
+
     if (selectedTrip) {
       setActiveTrip(selectedTrip.id)
     }
@@ -463,6 +516,11 @@ export default function Timeline() {
   }
 
   const openEditItem = (dayId, item) => {
+    if (!userCanEdit) {
+      setItemError(t('common.noEditPermission'))
+      return
+    }
+
     if (selectedTrip) {
       setActiveTrip(selectedTrip.id)
     }
@@ -481,8 +539,13 @@ export default function Timeline() {
   }
 
   const saveItem = () => {
+    if (!userCanEdit) {
+      setItemError(t('common.noEditPermission'))
+      return
+    }
+
     if (!itemForm.title) {
-      setItemError('Please enter an activity name.')
+      setItemError(t('timeline.activityRequired'))
       return
     }
 
@@ -505,8 +568,13 @@ export default function Timeline() {
   }
 
   const removeDay = (dayId) => {
+    if (!userCanEdit) {
+      setDayError(t('common.noEditPermission'))
+      return
+    }
+
     const confirmed = window.confirm(
-      'Delete this day? Activities under this day will also be deleted.'
+      t('timeline.deleteDayConfirm')
     )
 
     if (confirmed) {
@@ -518,7 +586,12 @@ export default function Timeline() {
   }
 
   const removeItem = (dayId, itemId) => {
-    const confirmed = window.confirm('Delete this activity?')
+    if (!userCanEdit) {
+      setItemError(t('common.noEditPermission'))
+      return
+    }
+
+    const confirmed = window.confirm(t('timeline.deleteActivityConfirm'))
 
     if (confirmed) {
       if (selectedTrip) {
@@ -536,6 +609,11 @@ export default function Timeline() {
   }
 
   const toggleActivityDone = (dayId, item) => {
+    if (!userCanEdit) {
+      setItemError(t('common.noEditPermission'))
+      return
+    }
+
     if (selectedTrip) {
       setActiveTrip(selectedTrip.id)
     }
@@ -554,10 +632,10 @@ export default function Timeline() {
             <div>
               <p className="text-blue-200 text-sm">AMAZING TRIP</p>
               <h1 className="text-white text-2xl font-bold mt-1">
-                Trip Management
+                {t('timeline.title')}
               </h1>
               <p className="text-blue-100 text-sm mt-1">
-                Select one trip and manage its daily schedule.
+                {t('timeline.subtitle')}
               </p>
             </div>
 
@@ -567,7 +645,7 @@ export default function Timeline() {
               className="bg-white/20 flex items-center gap-1 text-white text-sm px-3 py-2 rounded-xl shrink-0"
             >
               <Plus size={16} />
-              Create
+              {t('timeline.create')}
             </button>
           </div>
 
@@ -577,13 +655,13 @@ export default function Timeline() {
             className="mt-4 w-full bg-white/20 rounded-2xl px-4 py-3 flex items-center justify-between text-left"
           >
             <div className="min-w-0">
-              <p className="text-xs text-blue-100">Currently Viewing</p>
+              <p className="text-xs text-blue-100">{t('common.currentlyViewing')}</p>
               <p className="text-white text-sm font-semibold truncate mt-0.5">
                 {selectedTrip
                   ? `${selectedTrip.coverEmoji || '🌍'} ${
-                      selectedTrip.name || selectedTrip.destination || 'Untitled Trip'
+                      selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')
                     }`
-                  : 'Select a trip'}
+                  : t('common.selectTrip')}
               </p>
             </div>
 
@@ -611,10 +689,10 @@ export default function Timeline() {
                 {sortedTrips.length === 0 ? (
                   <div className="px-4 py-5 text-center">
                     <p className="text-sm font-medium text-gray-500">
-                      No trips available
+                      {t('common.noTripsAvailable')}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
-                      Create a trip first, then add daily schedules.
+                      {t('timeline.noTripsBody')}
                     </p>
                   </div>
                 ) : (
@@ -642,7 +720,7 @@ export default function Timeline() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-gray-800 truncate">
-                              {item.name || item.destination || 'Untitled Trip'}
+                            {item.name || item.destination || t('common.untitledTrip')}
                             </p>
 
                             {isSelected && (
@@ -651,7 +729,7 @@ export default function Timeline() {
                           </div>
 
                           <p className="text-xs text-gray-400 mt-1 truncate">
-                            {item.destination || 'No destination'} · {itemTimeline.length} days · {itemActivities} activities
+                            {item.destination || t('common.noDestination')} · {itemTimeline.length} {t('timeline.days')} · {itemActivities} {t('timeline.activities')}
                           </p>
                         </div>
                       </button>
@@ -680,41 +758,53 @@ export default function Timeline() {
                 <button
                   type="button"
                   onClick={() => openEditTrip(selectedTrip)}
-                  className="bg-blue-500 py-3 flex flex-col items-center gap-1"
+                  disabled={!userCanEdit}
+                  className={`py-3 flex flex-col items-center gap-1 ${
+                    userCanEdit ? 'bg-blue-500' : 'bg-gray-300 cursor-not-allowed'
+                  }`}
                 >
                   <Pencil size={15} />
-                  Edit
+                  {t('common.edit')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => toggleTripHidden(selectedTrip)}
-                  className="bg-slate-500 py-3 flex flex-col items-center gap-1"
+                  disabled={!userCanEdit}
+                  className={`py-3 flex flex-col items-center gap-1 ${
+                    userCanEdit ? 'bg-slate-500' : 'bg-gray-300 cursor-not-allowed'
+                  }`}
                 >
                   {selectedTrip.isHidden ? <Eye size={15} /> : <EyeOff size={15} />}
-                  {selectedTrip.isHidden ? 'Show' : 'Hide'}
+                  {selectedTrip.isHidden ? t('common.show') : t('common.hide')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => toggleTripCompleted(selectedTrip)}
-                  className="bg-green-500 py-3 flex flex-col items-center gap-1"
+                  disabled={!userCanEdit}
+                  className={`py-3 flex flex-col items-center gap-1 ${
+                    userCanEdit ? 'bg-green-500' : 'bg-gray-300 cursor-not-allowed'
+                  }`}
                 >
                   {selectedTrip.status === 'completed' ? (
                     <RotateCcw size={15} />
                   ) : (
                     <CheckCircle2 size={15} />
                   )}
-                  {selectedTrip.status === 'completed' ? 'Reopen' : 'Done'}
+                  {selectedTrip.status === 'completed' ? t('common.reopen') : t('common.done')}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => removeTrip(selectedTrip.id)}
-                  className="bg-red-500 py-3 flex flex-col items-center gap-1"
+                  disabled={!userCanDelete}
+                  className={`py-3 flex flex-col items-center gap-1 ${
+                    userCanDelete ? 'bg-red-500' : 'bg-gray-300 cursor-not-allowed'
+                  }`}
                 >
                   <Trash2 size={15} />
-                  Delete
+                  {t('common.delete')}
                 </button>
               </div>
             )}
@@ -729,37 +819,37 @@ export default function Timeline() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="font-bold text-gray-800 truncate">
-                        {selectedTrip.name || selectedTrip.destination || 'Untitled Trip'}
+                        {selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')}
                       </h2>
 
                       {selectedTrip.status === 'completed' && (
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                          Completed
+                          {t('common.completed')}
                         </span>
                       )}
 
                       {selectedTrip.isHidden && (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                          Hidden
+                          {t('common.hidden')}
                         </span>
                       )}
                     </div>
 
                     <p className="text-sm text-gray-500 mt-1 truncate">
-                      {selectedTrip.destination || 'No destination'}
+                      {selectedTrip.destination || t('common.noDestination')}
                     </p>
 
                     <p className="text-xs text-gray-400 mt-1">
-                      {selectedTrip.startDate || 'Start date'} → {selectedTrip.endDate || 'End date'}
+                      {selectedTrip.startDate || t('common.startDate')} → {selectedTrip.endDate || t('common.endDate')}
                     </p>
 
                     <div className="flex flex-wrap items-center gap-2 mt-3">
                       <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-600">
-                        {activePlannedDays} days
+                        {activePlannedDays} {t('timeline.days')}
                       </span>
 
                       <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-600">
-                        {activeActivities} activities
+                        {activeActivities} {t('timeline.activities')}
                       </span>
                     </div>
                   </div>
@@ -778,9 +868,9 @@ export default function Timeline() {
         ) : (
           <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
             <div className="text-5xl mb-3">🌍</div>
-            <h2 className="font-semibold text-gray-800">No trips created yet</h2>
+            <h2 className="font-semibold text-gray-800">{t('home.noTripsCreated')}</h2>
             <p className="text-sm text-gray-400 mt-2">
-              Create your first trip, then start adding daily schedules.
+              {t('timeline.noTripsBody')}
             </p>
 
             <button
@@ -789,32 +879,46 @@ export default function Timeline() {
               className="mt-5 bg-blue-500 text-white rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2"
             >
               <Plus size={16} />
-              Create Trip
+              {t('home.createTrip')}
             </button>
           </div>
         )}
 
         {selectedTrip && (
           <>
+            {!userCanEdit && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                <Lock size={18} className="text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {t('common.viewOnlySchedule')}
+                </p>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs text-gray-400">Currently Managing</p>
+                  <p className="text-xs text-gray-400">{t('common.currentlyManaging')}</p>
                   <h2 className="font-semibold text-gray-800 mt-1">
-                    {selectedTrip.coverEmoji || '🌍'} {selectedTrip.name || selectedTrip.destination || 'Untitled Trip'}
+                    {selectedTrip.coverEmoji || '🌍'} {selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')}
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    {selectedTrip.startDate || 'Start date'} → {selectedTrip.endDate || 'End date'}
+                    {selectedTrip.startDate || t('common.startDate')} → {selectedTrip.endDate || t('common.endDate')}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={openAddDayCard}
-                  className="bg-blue-500 text-white rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0"
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                    userCanEdit
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={14} />
-                  Daily Schedule
+                  {t('timeline.dailySchedule')}
                 </button>
               </div>
             </div>
@@ -824,10 +928,10 @@ export default function Timeline() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="font-semibold text-gray-800">
-                      {dayMode === 'add' ? 'Add Daily Schedule' : 'Edit Daily Schedule'}
+                      {dayMode === 'add' ? t('timeline.addDailySchedule') : t('timeline.editDailySchedule')}
                     </h2>
                     <p className="text-xs text-gray-400 mt-1">
-                      Day Number auto-calculates the date from the trip start date.
+                      {t('timeline.dayAutoDate')}
                     </p>
                   </div>
 
@@ -836,7 +940,7 @@ export default function Timeline() {
                     onClick={cancelDayCard}
                     className="text-xs text-gray-400"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
 
@@ -847,7 +951,7 @@ export default function Timeline() {
                 )}
 
                 <InputField
-                  label="Day Number"
+                  label={t('timeline.dayNumber')}
                   type="number"
                   value={dayForm.day}
                   onChange={updateDayNumber}
@@ -855,17 +959,17 @@ export default function Timeline() {
                 />
 
                 <InputField
-                  label="Date"
+                  label={t('common.date')}
                   type="date"
                   value={dayForm.date}
                   onChange={(value) => updateDayForm('date', value)}
                 />
 
                 <InputField
-                  label="Day Title"
+                  label={t('timeline.dayTitle')}
                   value={dayForm.title}
                   onChange={(value) => updateDayForm('title', value)}
-                  placeholder="Example: Sydney Opera House / Tokyo Day 1"
+                  placeholder={t('timeline.dayTitlePlaceholder')}
                 />
 
                 <button
@@ -873,7 +977,7 @@ export default function Timeline() {
                   onClick={saveDay}
                   className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
                 >
-                  {dayMode === 'add' ? 'Add Daily Schedule' : 'Save Changes'}
+                  {dayMode === 'add' ? t('timeline.addDailySchedule') : t('common.saveChanges')}
                 </button>
               </div>
             )}
@@ -882,7 +986,7 @@ export default function Timeline() {
               <div className="bg-white rounded-2xl shadow-sm p-4">
                 <div className="flex items-center gap-2 text-gray-500">
                   <CalendarDays size={17} />
-                  <span className="text-xs">Planned Days</span>
+                  <span className="text-xs">{t('timeline.plannedDays')}</span>
                 </div>
                 <p className="text-2xl font-bold text-gray-800 mt-2">
                   {activePlannedDays}
@@ -892,7 +996,7 @@ export default function Timeline() {
               <div className="bg-white rounded-2xl shadow-sm p-4">
                 <div className="flex items-center gap-2 text-gray-500">
                   <CheckCircle2 size={17} />
-                  <span className="text-xs">Done Activities</span>
+                  <span className="text-xs">{t('timeline.doneActivities')}</span>
                 </div>
                 <p className="text-2xl font-bold text-gray-800 mt-2">
                   {activeDoneActivities}
@@ -904,19 +1008,24 @@ export default function Timeline() {
               <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
                 <div className="text-5xl mb-3">🗓️</div>
                 <h2 className="font-semibold text-gray-800">
-                  This trip has no daily schedule yet
+                  {t('timeline.noScheduleTitle')}
                 </h2>
                 <p className="text-sm text-gray-400 mt-2">
-                  Add Day 1, Day 2, or any custom travel day manually.
+                  {t('timeline.noScheduleBody')}
                 </p>
 
                 <button
                   type="button"
                   onClick={openAddDayCard}
-                  className="mt-5 bg-blue-500 text-white rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2"
+                  disabled={!userCanEdit}
+                  className={`mt-5 rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2 ${
+                    userCanEdit
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={16} />
-                  Add Daily Schedule
+                  {t('timeline.addDailySchedule')}
                 </button>
               </div>
             )}
@@ -946,13 +1055,17 @@ export default function Timeline() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => openEditDayCard(day)}>
-                        <Pencil size={15} className="text-gray-400" />
-                      </button>
+                      {userCanEdit && (
+                        <>
+                          <button type="button" onClick={() => openEditDayCard(day)}>
+                            <Pencil size={15} className="text-gray-400" />
+                          </button>
 
-                      <button type="button" onClick={() => removeDay(day.id)}>
-                        <Trash2 size={15} className="text-rose-400" />
-                      </button>
+                          <button type="button" onClick={() => removeDay(day.id)}>
+                            <Trash2 size={15} className="text-rose-400" />
+                          </button>
+                        </>
+                      )}
 
                       <button type="button" onClick={() => toggleExpand(day.id)}>
                         {isOpen ? (
@@ -969,7 +1082,7 @@ export default function Timeline() {
                       {sortedDayItems.length === 0 && (
                         <div className="rounded-2xl bg-gray-50 p-4 text-center">
                           <p className="text-sm text-gray-400">
-                            No activities yet.
+                            {t('timeline.noActivities')}
                           </p>
                         </div>
                       )}
@@ -984,11 +1097,12 @@ export default function Timeline() {
                             <button
                               type="button"
                               onClick={() => toggleActivityDone(day.id, item)}
+                              disabled={!userCanEdit}
                               className={`w-4 h-4 rounded-full mt-0.5 shrink-0 border ${
                                 item.status === 'done'
                                   ? 'bg-green-500 border-green-500'
                                   : 'bg-white border-blue-300'
-                              }`}
+                              } ${userCanEdit ? '' : 'cursor-default'}`}
                             />
 
                             {index < sortedDayItems.length - 1 && (
@@ -1038,27 +1152,29 @@ export default function Timeline() {
                                       className="text-xs text-blue-500 mt-1 inline-flex items-center gap-1"
                                     >
                                       <LinkIcon size={12} />
-                                      Open Map
+                                      {t('timeline.openMap')}
                                     </a>
                                   )}
                                 </div>
                               </div>
 
-                              <div className="flex gap-2 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditItem(day.id, item)}
-                                >
-                                  <Pencil size={13} className="text-gray-300 hover:text-gray-500" />
-                                </button>
+                              {userCanEdit && (
+                                <div className="flex gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditItem(day.id, item)}
+                                  >
+                                    <Pencil size={13} className="text-gray-300 hover:text-gray-500" />
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => removeItem(day.id, item.id)}
-                                >
-                                  <Trash2 size={13} className="text-gray-300 hover:text-rose-400" />
-                                </button>
-                              </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeItem(day.id, item.id)}
+                                  >
+                                    <Trash2 size={13} className="text-gray-300 hover:text-rose-400" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1067,10 +1183,13 @@ export default function Timeline() {
                       <button
                         type="button"
                         onClick={() => openAddItem(day.id)}
-                        className="flex items-center gap-1 text-blue-500 text-sm mt-3 py-2"
+                        disabled={!userCanEdit}
+                        className={`flex items-center gap-1 text-sm mt-3 py-2 ${
+                          userCanEdit ? 'text-blue-500' : 'text-gray-400 cursor-not-allowed'
+                        }`}
                       >
                         <Plus size={15} />
-                        Add Activity
+                        {t('timeline.addActivity')}
                       </button>
                     </div>
                   )}
@@ -1082,10 +1201,15 @@ export default function Timeline() {
               <button
                 type="button"
                 onClick={openAddDayCard}
-                className="w-full bg-blue-50 text-blue-600 rounded-2xl py-4 font-semibold text-sm flex items-center justify-center gap-2"
+                disabled={!userCanEdit}
+                className={`w-full rounded-2xl py-4 font-semibold text-sm flex items-center justify-center gap-2 ${
+                  userCanEdit
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
               >
                 <Plus size={16} />
-                Add Another Day
+                {t('timeline.addAnotherDay')}
               </button>
             )}
           </>
@@ -1094,7 +1218,7 @@ export default function Timeline() {
 
       {(creatingTrip || editingTrip) && (
         <EditModal
-          title={creatingTrip ? 'Create Trip' : 'Edit Trip'}
+          title={creatingTrip ? t('home.createTrip') : t('home.editTrip')}
           onClose={closeTripModal}
         >
           {tripError && (
@@ -1104,7 +1228,7 @@ export default function Timeline() {
           )}
 
           <InputField
-            label="Trip Name"
+            label={t('home.tripName')}
             value={tripForm.name}
             onChange={(value) =>
               setTripForm((form) => ({ ...form, name: value }))
@@ -1112,7 +1236,7 @@ export default function Timeline() {
           />
 
           <InputField
-            label="Destination"
+            label={t('home.destination')}
             value={tripForm.destination}
             onChange={(value) =>
               setTripForm((form) => ({ ...form, destination: value }))
@@ -1120,7 +1244,7 @@ export default function Timeline() {
           />
 
           <InputField
-            label="Cover Emoji"
+            label={t('home.coverEmoji')}
             value={tripForm.coverEmoji}
             onChange={(value) =>
               setTripForm((form) => ({ ...form, coverEmoji: value }))
@@ -1128,7 +1252,7 @@ export default function Timeline() {
           />
 
           <InputField
-            label="Start Date"
+            label={t('common.startDate')}
             type="date"
             value={tripForm.startDate}
             onChange={(value) => {
@@ -1138,7 +1262,7 @@ export default function Timeline() {
           />
 
           <InputField
-            label="End Date"
+            label={t('common.endDate')}
             type="date"
             value={tripForm.endDate}
             onChange={(value) => {
@@ -1151,10 +1275,10 @@ export default function Timeline() {
             <div className="flex items-start justify-between gap-3 mb-2">
               <div>
                 <label className="block text-xs font-medium text-gray-500">
-                  Planning Members
+                  {t('timeline.planningMembers')}
                 </label>
                 <p className="text-xs text-gray-400 mt-1">
-                  Add people for planning now. Invite/login permissions will be connected later.
+                  {t('timeline.planningMembersHint')}
                 </p>
               </div>
             </div>
@@ -1165,7 +1289,7 @@ export default function Timeline() {
                 value={memberInput}
                 onChange={(event) => setMemberInput(event.target.value)}
                 onKeyDown={handleMemberInputKeyDown}
-                placeholder="Name or email"
+                placeholder={t('timeline.memberPlaceholder')}
               />
 
               <button
@@ -1174,7 +1298,7 @@ export default function Timeline() {
                 className="bg-blue-500 text-white rounded-xl px-4 text-sm font-semibold flex items-center gap-1"
               >
                 <Plus size={15} />
-                Add
+                {t('common.add')}
               </button>
             </div>
 
@@ -1197,7 +1321,7 @@ export default function Timeline() {
               </div>
             ) : (
               <p className="text-xs text-gray-400 mt-3">
-                No members added yet. You can still create this as a solo trip.
+                {t('timeline.noMembersYet')}
               </p>
             )}
           </div>
@@ -1207,14 +1331,14 @@ export default function Timeline() {
             onClick={creatingTrip ? saveNewTrip : saveEditedTrip}
             className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm"
           >
-            {creatingTrip ? 'Save Trip' : 'Save Changes'}
+            {creatingTrip ? t('home.saveTrip') : t('common.saveChanges')}
           </button>
         </EditModal>
       )}
 
       {itemModal && (
         <EditModal
-          title={itemModal.type === 'add' ? 'Add Activity' : 'Edit Activity'}
+          title={itemModal.type === 'add' ? t('timeline.addActivity') : t('timeline.editActivity')}
           onClose={() => setItemModal(null)}
         >
           {itemError && (
@@ -1224,48 +1348,51 @@ export default function Timeline() {
           )}
 
           <SelectField
-            label="Type"
+            label={t('timeline.type')}
             value={itemForm.type}
             onChange={(value) => {
               updateItemForm('type', value)
               updateItemForm('icon', TYPE_ICON[value] || '📍')
             }}
-            options={TYPE_OPTIONS}
+            options={TYPE_OPTIONS.map((option) => ({
+              ...option,
+              label: `${TYPE_ICON[option.value]} ${t(`timeline.type.${option.value}`)}`,
+            }))}
           />
 
           <InputField
-            label="Time"
+            label={t('timeline.time')}
             value={itemForm.time}
             onChange={(value) => updateItemForm('time', value)}
             placeholder="09:00"
           />
 
           <InputField
-            label="Activity Name"
+            label={t('timeline.activityName')}
             value={itemForm.title}
             onChange={(value) => updateItemForm('title', value)}
-            placeholder="Example: Visit Senso-ji Temple"
+            placeholder={t('timeline.activityPlaceholder')}
           />
 
           <InputField
-            label="Location"
+            label={t('timeline.location')}
             value={itemForm.location}
             onChange={(value) => updateItemForm('location', value)}
-            placeholder="Example: Tokyo Station"
+            placeholder={t('timeline.locationPlaceholder')}
           />
 
           <InputField
-            label="Google Maps Link"
+            label={t('timeline.mapsLink')}
             value={itemForm.mapUrl}
             onChange={(value) => updateItemForm('mapUrl', value)}
             placeholder="https://maps.google.com/..."
           />
 
           <InputField
-            label="Notes"
+            label={t('timeline.notes')}
             value={itemForm.note}
             onChange={(value) => updateItemForm('note', value)}
-            placeholder="Tickets, meeting point, reminders..."
+            placeholder={t('timeline.notesPlaceholder')}
           />
 
           <button
@@ -1273,7 +1400,7 @@ export default function Timeline() {
             onClick={saveItem}
             className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            Save Activity
+            {t('timeline.saveActivity')}
           </button>
         </EditModal>
       )}

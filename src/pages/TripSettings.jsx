@@ -13,7 +13,8 @@ import {
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
-import { canEditTrip, normalizeEmail } from '../lib/tripCloud'
+import { canManageTripMembers, normalizeEmail } from '../lib/tripCloud'
+import { useTranslation } from '../lib/i18n'
 
 export default function TripSettings() {
   const navigate = useNavigate()
@@ -25,6 +26,7 @@ export default function TripSettings() {
     cloudError,
   } = useTripStore()
   const { user } = useAuthStore()
+  const { t } = useTranslation()
 
   const [tripType, setTripType] = useState('solo')
   const [email, setEmail] = useState('')
@@ -32,7 +34,7 @@ export default function TripSettings() {
   const [message, setMessage] = useState('')
 
   const activeTrip = trips.find((item) => item.id === activeTripId)
-  const userCanEdit = canEditTrip(activeTrip, user)
+  const userCanManageMembers = canManageTripMembers(activeTrip, user)
   const memberEmails = activeTrip?.memberEmails || []
   const memberRoles = activeTrip?.memberRoles || {}
   const ownerEmail = normalizeEmail(activeTrip?.ownerEmail || user?.email)
@@ -41,12 +43,12 @@ export default function TripSettings() {
     const invitedEmail = normalizeEmail(email)
 
     if (!activeTrip || !invitedEmail) {
-      setMessage('Please enter your friend’s Gmail address.')
+      setMessage(t('tripSettings.enterEmail'))
       return
     }
 
-    if (!userCanEdit) {
-      setMessage('Only the owner or an editor can share this trip.')
+    if (!userCanManageMembers) {
+      setMessage(t('tripSettings.ownerInviteOnly'))
       return
     }
 
@@ -71,13 +73,13 @@ export default function TripSettings() {
     setTripType('group')
     setEmail('')
     setRole('viewer')
-    setMessage(`Shared with ${invitedEmail}. They can sign in with Google to see this trip.`)
+    setMessage(t('tripSettings.sharedWith', { email: invitedEmail }))
   }
 
   const removeMember = (memberEmail) => {
     const normalizedMemberEmail = normalizeEmail(memberEmail)
 
-    if (!activeTrip || normalizedMemberEmail === ownerEmail || !userCanEdit) {
+    if (!activeTrip || normalizedMemberEmail === ownerEmail || !userCanManageMembers) {
       return
     }
 
@@ -94,7 +96,7 @@ export default function TripSettings() {
       memberRoles: nextRoles,
     })
 
-    setMessage(`Removed ${normalizedMemberEmail} from this trip.`)
+    setMessage(t('tripSettings.removed', { email: normalizedMemberEmail }))
   }
 
   return (
@@ -109,21 +111,23 @@ export default function TripSettings() {
             <ArrowLeft size={20} />
           </button>
 
-          <p className="text-blue-100 text-sm font-medium">TRIP SETTINGS</p>
+          <p className="text-blue-100 text-sm font-medium">
+            {t('tripSettings.title').toUpperCase()}
+          </p>
           <h1 className="text-white text-2xl font-bold mt-1">
-            {trip.name || 'Untitled Trip'}
+            {trip.name || t('common.untitledTrip')}
           </h1>
           <p className="text-blue-100 text-sm mt-1">
-            Manage trip type, members, sharing, and permissions.
+            {t('tripSettings.subtitle')}
           </p>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
         <div className="bg-white rounded-2xl shadow-sm p-5">
-          <h2 className="font-semibold text-gray-800 mb-1">Trip Type</h2>
+          <h2 className="font-semibold text-gray-800 mb-1">{t('tripSettings.tripType')}</h2>
           <p className="text-xs text-gray-400 mb-4">
-            Choose whether this trip is only for you or shared with others.
+            {t('tripSettings.tripTypeBody')}
           </p>
 
           <div className="grid grid-cols-1 gap-3">
@@ -141,9 +145,9 @@ export default function TripSettings() {
                   <User size={20} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800">Solo Trip</h3>
+                  <h3 className="font-semibold text-gray-800">{t('tripSettings.solo')}</h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Only you manage this trip. Good for personal planning.
+                    {t('tripSettings.soloBody')}
                   </p>
                 </div>
               </div>
@@ -163,9 +167,9 @@ export default function TripSettings() {
                   <Users size={20} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800">Group Trip</h3>
+                  <h3 className="font-semibold text-gray-800">{t('tripSettings.group')}</h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Invite friends or family and control who can edit.
+                    {t('tripSettings.groupBody')}
                   </p>
                 </div>
               </div>
@@ -184,14 +188,14 @@ export default function TripSettings() {
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
                 <ShieldCheck size={18} className="text-green-500" />
-                <h2 className="font-semibold text-gray-800">Trip Members</h2>
+                <h2 className="font-semibold text-gray-800">{t('tripSettings.members')}</h2>
               </div>
 
               <div className="space-y-3">
                 {memberEmails.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center">
                     <p className="text-sm text-gray-500">
-                      Share this trip with a Gmail address to add members.
+                      {t('tripSettings.emptyMembers')}
                     </p>
                   </div>
                 ) : (
@@ -209,15 +213,17 @@ export default function TripSettings() {
                           <p className="text-sm font-semibold text-gray-800 truncate">
                             {normalizedMemberEmail}
                           </p>
-                          <p className="text-xs text-gray-400 capitalize">{memberRole}</p>
+                          <p className="text-xs text-gray-400 capitalize">
+                            {t(`common.${memberRole}`)}
+                          </p>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs bg-blue-100 text-blue-600 px-3 py-1 rounded-full capitalize">
-                            {memberRole}
+                            {t(`common.${memberRole}`)}
                           </span>
 
-                          {!isOwner && userCanEdit && (
+                          {!isOwner && userCanManageMembers && (
                             <button
                               type="button"
                               onClick={() => removeMember(normalizedMemberEmail)}
@@ -233,10 +239,10 @@ export default function TripSettings() {
                   })
                 )}
 
-                {!userCanEdit && (
+                {!userCanManageMembers && (
                   <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center">
                   <p className="text-sm text-gray-500">
-                    You can view this shared trip, but only owners or editors can invite members.
+                    {t('tripSettings.viewOnlyMembers')}
                   </p>
                 </div>
                 )}
@@ -246,31 +252,31 @@ export default function TripSettings() {
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Mail size={18} className="text-blue-500" />
-                <h2 className="font-semibold text-gray-800">Invite Member</h2>
+                <h2 className="font-semibold text-gray-800">{t('tripSettings.inviteMember')}</h2>
               </div>
 
               <label className="block text-xs font-medium text-gray-500 mb-1">
-                Email
+                {t('tripSettings.email')}
               </label>
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="friend@gmail.com"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 mb-4"
-                disabled={!userCanEdit}
+                disabled={!userCanManageMembers}
               />
 
               <label className="block text-xs font-medium text-gray-500 mb-1">
-                Permission
+                {t('tripSettings.permission')}
               </label>
               <select
                 value={role}
                 onChange={(event) => setRole(event.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 mb-4"
-                disabled={!userCanEdit}
+                disabled={!userCanManageMembers}
               >
-                <option value="viewer">Viewer - can only view</option>
-                <option value="editor">Editor - can edit trip details</option>
+                <option value="viewer">{t('tripSettings.viewerOption')}</option>
+                <option value="editor">{t('tripSettings.editorOption')}</option>
               </select>
 
               {message && (
@@ -282,32 +288,32 @@ export default function TripSettings() {
               <button
                 type="button"
                 onClick={shareTrip}
-                disabled={!userCanEdit}
+                disabled={!userCanManageMembers}
                 className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Send Invite
+                {t('tripSettings.sendInvite')}
               </button>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Link size={18} className="text-purple-500" />
-                <h2 className="font-semibold text-gray-800">Invite Link</h2>
+                <h2 className="font-semibold text-gray-800">{t('tripSettings.inviteLink')}</h2>
               </div>
 
               <p className="text-sm text-gray-500 mb-4">
-                For private testing, share by Gmail address above. Invite links can be added later when the permission model is more mature.
+                {t('tripSettings.inviteLinkBody')}
               </p>
 
               <button
                 type="button"
                 onClick={() => {
                   navigator.clipboard?.writeText(window.location.origin)
-                  setMessage('App link copied. Your friend still needs to be added by Gmail above.')
+                  setMessage(t('tripSettings.linkCopied'))
                 }}
                 className="w-full bg-purple-50 text-purple-600 rounded-xl py-3 font-semibold text-sm"
               >
-                Copy App Link
+                {t('tripSettings.copyLink')}
               </button>
             </div>
           </>
@@ -321,13 +327,13 @@ export default function TripSettings() {
               <Globe size={18} className="text-indigo-500" />
             )}
 
-            <h2 className="font-semibold text-gray-800">Current Mode</h2>
+            <h2 className="font-semibold text-gray-800">{t('tripSettings.currentMode')}</h2>
           </div>
 
           <p className="text-sm text-gray-500">
             {tripType === 'solo'
-              ? 'This trip is currently designed as a private solo trip.'
-              : 'This trip is prepared for group sharing and permission control.'}
+              ? t('tripSettings.soloMode')
+              : t('tripSettings.groupMode')}
           </p>
         </div>
       </div>

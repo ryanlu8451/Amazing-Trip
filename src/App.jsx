@@ -6,11 +6,12 @@ import Timeline from './pages/Timeline'
 import Flights from './pages/Flights'
 import Hotels from './pages/Hotels'
 import Budget from './pages/Budget'
-import Tips from './pages/Tips'
+import SettingsPage from './pages/Tips'
 import TripSettings from './pages/TripSettings'
 import Login from './pages/Login'
 import { useAuthStore } from './store/authStore'
 import { useTripCloudSync } from './hooks/useTripCloudSync'
+import { useTranslation } from './lib/i18n'
 
 function App() {
   const {
@@ -18,6 +19,7 @@ function App() {
     user,
     startAuthListener,
   } = useAuthStore()
+  const { t } = useTranslation()
 
   useTripCloudSync(user)
 
@@ -33,7 +35,7 @@ function App() {
           <p className="text-blue-500 text-sm font-semibold tracking-wide">
             AMAZING TRIP
           </p>
-          <p className="text-gray-500 text-sm mt-2">Checking sign-in...</p>
+          <p className="text-gray-500 text-sm mt-2">{t('app.checkingSignIn')}</p>
         </div>
       </div>
     )
@@ -52,7 +54,8 @@ function App() {
           <Route path="/flights" element={<Flights />} />
           <Route path="/hotels" element={<Hotels />} />
           <Route path="/budget" element={<Budget />} />
-          <Route path="/tips" element={<Tips />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/tips" element={<SettingsPage />} />
           <Route path="/trip-settings" element={<TripSettings />} />
         </Routes>
       </div>

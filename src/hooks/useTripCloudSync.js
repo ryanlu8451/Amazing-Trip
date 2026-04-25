@@ -1,5 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { deleteTripFromCloud, saveTripToCloud, subscribeToSharedTrips } from '../lib/tripCloud'
+import {
+  canDeleteTrip,
+  canSaveTripToCloud,
+  deleteTripFromCloud,
+  saveTripToCloud,
+  subscribeToSharedTrips,
+} from '../lib/tripCloud'
 import { useTripStore } from '../store/tripStore'
 
 function getCloudSafeTripId(trip, user) {
@@ -88,13 +94,15 @@ export function useTripCloudSync(user) {
       window.clearTimeout(writeTimerRef.current)
 
       writeTimerRef.current = window.setTimeout(async () => {
-        const previousIds = new Set(lastTripsRef.current.map((trip) => trip.id))
         const currentIds = new Set(state.trips.map((trip) => trip.id))
-        const deletedTripIds = [...previousIds].filter((tripId) => !currentIds.has(tripId))
+        const deletedTripIds = lastTripsRef.current
+          .filter((trip) => !currentIds.has(trip.id) && canDeleteTrip(trip, user))
+          .map((trip) => trip.id)
+        const tripsToSave = state.trips.filter((trip) => canSaveTripToCloud(trip, user))
 
         try {
           await Promise.all([
-            ...state.trips.map((trip) => saveTripToCloud(trip, user)),
+            ...tripsToSave.map((trip) => saveTripToCloud(trip, user)),
             ...deletedTripIds.map((tripId) => deleteTripFromCloud(tripId)),
           ])
 

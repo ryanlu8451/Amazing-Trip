@@ -7,6 +7,7 @@ import {
   ClipboardPaste,
   CreditCard,
   Link as LinkIcon,
+  Lock,
   MapPin,
   Pencil,
   Phone,
@@ -16,6 +17,9 @@ import {
   Wifi,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
+import { useAuthStore } from '../store/authStore'
+import { canEditTrip } from '../lib/tripCloud'
+import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
 
@@ -112,16 +116,16 @@ function getStatusStyle(status) {
   return 'bg-amber-100 text-amber-700'
 }
 
-function getStatusLabel(status) {
+function getStatusLabel(status, t) {
   if (status === 'confirmed') {
-    return 'Confirmed'
+    return t('common.confirmed')
   }
 
   if (status === 'cancelled') {
-    return 'Cancelled'
+    return t('common.cancelled')
   }
 
-  return 'Pending'
+  return t('common.pending')
 }
 
 function isDateRangeValid(checkIn, checkOut) {
@@ -393,6 +397,9 @@ export default function Hotels() {
     deleteHotel,
   } = useTripStore()
 
+  const { user } = useAuthStore()
+  const { t } = useTranslation()
+
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(emptyHotel)
   const [error, setError] = useState('')
@@ -402,6 +409,7 @@ export default function Hotels() {
   const [importMessage, setImportMessage] = useState('')
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
+  const userCanEdit = canEditTrip(selectedTrip, user)
   const selectedHotels = sortHotelsByDate(selectedTrip?.hotels || [])
   const selectedHotelTotal = selectedTrip ? getTripHotelTotal(selectedTrip) : 0
 
@@ -418,6 +426,11 @@ export default function Hotels() {
 
   const openAdd = () => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -440,6 +453,11 @@ export default function Hotels() {
 
   const openEdit = (hotel) => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -483,8 +501,13 @@ export default function Hotels() {
   }
 
   const importConfirmation = () => {
+    if (!userCanEdit) {
+      setImportMessage(t('common.noEditPermission'))
+      return
+    }
+
     if (!importText.trim()) {
-      setImportMessage('Paste a hotel confirmation email or booking details first.')
+      setImportMessage(t('hotels.pasteFirst'))
       return
     }
 
@@ -500,17 +523,22 @@ export default function Hotels() {
       return updatedForm
     })
 
-    setImportMessage('Imported what I could find. Please review the fields before saving.')
+    setImportMessage(t('hotels.imported'))
   }
 
   const save = () => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     if (!form.name || !form.checkIn || !form.checkOut) {
-      setError('Please enter hotel name, check-in date, and check-out date.')
+      setError(t('hotels.required'))
       return
     }
 
     if (!isDateRangeValid(form.checkIn, form.checkOut)) {
-      setError('Check-out date must be after check-in date.')
+      setError(t('hotels.invalidDates'))
       return
     }
 
@@ -539,7 +567,12 @@ export default function Hotels() {
       return
     }
 
-    const confirmed = window.confirm('Delete this hotel booking? This action cannot be undone.')
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
+    const confirmed = window.confirm(t('hotels.deleteConfirm'))
 
     if (confirmed) {
       setActiveTrip(selectedTrip.id)
@@ -561,9 +594,9 @@ export default function Hotels() {
       <div className="bg-gradient-to-br from-purple-500 to-indigo-600 px-6 pt-12 pb-4 shadow-lg shadow-purple-900/10 relative z-20">
         <div className="max-w-lg mx-auto relative z-40">
           <div>
-            <p className="text-purple-200 text-sm">AMAZING TRIP</p>
+            <p className="text-purple-200 text-sm">{t('common.amazingTrip')}</p>
             <h1 className="text-white text-2xl font-bold mt-1">
-              Hotel Management
+              {t('hotels.title')}
             </h1>
             <p className="text-purple-100 text-sm mt-1">
               Select one trip and manage only that trip&apos;s stays.
@@ -662,43 +695,57 @@ export default function Hotels() {
           </div>
         ) : (
           <>
+            {!userCanEdit && selectedTrip && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                <Lock size={18} className="text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {t('common.viewOnlyHotels')}
+                </p>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs text-gray-400">Selected Trip</p>
+                  <p className="text-xs text-gray-400">{t('common.selectedTrip')}</p>
 
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-3xl">{selectedTrip.coverEmoji || '🌍'}</span>
 
                     <div className="min-w-0">
                       <h2 className="font-bold text-gray-800 truncate">
-                        {selectedTrip.name || selectedTrip.destination || 'Untitled Trip'}
+                        {selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')}
                       </h2>
                       <p className="text-xs text-gray-500 truncate">
-                        {selectedTrip.destination || 'No destination'}
+                        {selectedTrip.destination || t('common.noDestination')}
                       </p>
                     </div>
                   </div>
 
                   <p className="text-xs text-gray-400 mt-3">
-                    {selectedTrip.startDate || 'Start date'} →{' '}
-                    {selectedTrip.endDate || 'End date'}
+                    {selectedTrip.startDate || t('common.startDate')} →{' '}
+                    {selectedTrip.endDate || t('common.endDate')}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={openAdd}
-                  className="bg-purple-500 text-white rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0"
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                    userCanEdit
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={14} />
-                  Stay
+                  {t('hotels.stay')}
                 </button>
               </div>
 
               <div className="grid grid-cols-3 gap-3 mt-5">
                 <div className="rounded-2xl bg-purple-50 p-3">
-                  <p className="text-xs text-purple-500">Bookings</p>
+                  <p className="text-xs text-purple-500">{t('hotels.bookings')}</p>
                   <p className="text-xl font-bold text-purple-700 mt-1">
                     {selectedHotels.length}
                   </p>
@@ -712,7 +759,7 @@ export default function Hotels() {
                 </div>
 
                 <div className="rounded-2xl bg-gray-50 p-3">
-                  <p className="text-xs text-gray-500">Cost</p>
+                  <p className="text-xs text-gray-500">{t('hotels.cost')}</p>
                   <p className="text-sm font-bold text-gray-800 mt-1">
                     {formatMoney(selectedHotelTotal, 'CAD')}
                   </p>
@@ -727,19 +774,24 @@ export default function Hotels() {
                 </div>
 
                 <h2 className="font-semibold text-gray-800">
-                  No hotel bookings for this trip yet
+                  {t('hotels.noHotelsTitle')}
                 </h2>
                 <p className="text-sm text-gray-400 mt-2">
-                  Add hotels, Airbnb stays, or temporary lodging for this selected trip.
+                  {t('hotels.noHotelsBody')}
                 </p>
 
                 <button
                   type="button"
                   onClick={openAdd}
-                  className="mt-5 bg-purple-500 text-white rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2"
+                  disabled={!userCanEdit}
+                  className={`mt-5 rounded-xl px-5 py-3 text-sm font-semibold inline-flex items-center gap-2 ${
+                    userCanEdit
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={16} />
-                  Add First Stay
+                  {t('hotels.addFirst')}
                 </button>
               </div>
             ) : (
@@ -773,7 +825,7 @@ export default function Hotels() {
                                   hotel.status
                                 )}`}
                               >
-                                {getStatusLabel(hotel.status)}
+                                {getStatusLabel(hotel.status, t)}
                               </span>
                             </div>
 
@@ -799,23 +851,25 @@ export default function Hotels() {
                           </div>
                         </div>
 
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(hotel)}
-                            className="p-1 rounded-full hover:bg-gray-50"
-                          >
-                            <Pencil size={15} className="text-gray-400" />
-                          </button>
+                        {userCanEdit && (
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(hotel)}
+                              className="p-1 rounded-full hover:bg-gray-50"
+                            >
+                              <Pencil size={15} className="text-gray-400" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => removeHotel(hotel.id)}
-                            className="p-1 rounded-full hover:bg-gray-50"
-                          >
-                            <Trash2 size={15} className="text-rose-400" />
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => removeHotel(hotel.id)}
+                              className="p-1 rounded-full hover:bg-gray-50"
+                            >
+                              <Trash2 size={15} className="text-rose-400" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="px-4 pb-4 space-y-3">
@@ -823,20 +877,20 @@ export default function Hotels() {
                           <div className="bg-green-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-green-600">
                               <CalendarDays size={14} />
-                              <p className="text-xs font-medium">Check-in</p>
+                              <p className="text-xs font-medium">{t('hotels.checkIn')}</p>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {hotel.checkIn || 'Not set'}
+                              {hotel.checkIn || t('common.notSet')}
                             </p>
                           </div>
 
                           <div className="bg-rose-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-rose-600">
                               <CalendarDays size={14} />
-                              <p className="text-xs font-medium">Check-out</p>
+                              <p className="text-xs font-medium">{t('hotels.checkOut')}</p>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {hotel.checkOut || 'Not set'}
+                              {hotel.checkOut || t('common.notSet')}
                             </p>
                           </div>
                         </div>
@@ -845,22 +899,21 @@ export default function Hotels() {
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <Users size={14} />
-                              <span className="text-xs">Room Type</span>
+                              <span className="text-xs">{t('hotels.roomType')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {hotel.roomCapacity || '2'}-person room
+                              {t('hotels.personRoom', { count: hotel.roomCapacity || '2' })}
                             </p>
                           </div>
 
                           <div className="bg-gray-50 rounded-xl p-3">
                             <div className="flex items-center gap-2 text-gray-400">
                               <BedDouble size={14} />
-                              <span className="text-xs">Rooms / Nights</span>
+                              <span className="text-xs">{t('hotels.roomsNights')}</span>
                             </div>
                             <p className="text-sm font-semibold text-gray-800 mt-1">
-                              {hotel.rooms || 1} room
-                              {Number(hotel.rooms || 1) > 1 ? 's' : ''} · {nights}{' '}
-                              night{nights === 1 ? '' : 's'}
+                              {hotel.rooms || 1} {Number(hotel.rooms || 1) > 1 ? t('hotels.rooms') : t('hotels.room')} · {nights}{' '}
+                              {nights === 1 ? t('hotels.night') : t('hotels.nights')}
                             </p>
                           </div>
                         </div>
@@ -869,13 +922,12 @@ export default function Hotels() {
                           <div>
                             <div className="flex items-center gap-2 text-gray-400">
                               <CreditCard size={14} />
-                              <span className="text-xs">Accommodation Cost</span>
+                              <span className="text-xs">{t('hotels.accommodationCost')}</span>
                             </div>
 
                             <p className="text-xs text-gray-500 mt-1">
-                              {nights} night{nights === 1 ? '' : 's'} ×{' '}
-                              {hotel.rooms || 1} room
-                              {Number(hotel.rooms || 1) > 1 ? 's' : ''} ×{' '}
+                              {nights} {nights === 1 ? t('hotels.night') : t('hotels.nights')} ×{' '}
+                              {hotel.rooms || 1} {Number(hotel.rooms || 1) > 1 ? t('hotels.rooms') : t('hotels.room')} ×{' '}
                               {formatMoney(hotel.pricePerNight || 0, hotel.currency)}
                             </p>
                           </div>
@@ -937,7 +989,7 @@ export default function Hotels() {
                                 className="text-xs text-purple-600 font-medium flex items-center gap-2 rounded-xl py-1 active:bg-purple-50"
                               >
                                 <LinkIcon size={13} />
-                                Open Google Map
+                                {t('hotels.openGoogleMap')}
                               </a>
                             )}
                           </div>
@@ -946,7 +998,7 @@ export default function Hotels() {
                         {hotel.notes && (
                           <div className="rounded-xl bg-amber-50 p-3">
                             <p className="text-xs font-medium text-amber-700 mb-1">
-                              Notes
+                              {t('timeline.notes')}
                             </p>
                             <p className="text-sm text-amber-800">{hotel.notes}</p>
                           </div>
@@ -963,7 +1015,7 @@ export default function Hotels() {
 
       {modal && (
         <EditModal
-          title={modal.mode === 'add' ? 'Add Hotel Booking' : 'Edit Hotel Booking'}
+          title={modal.mode === 'add' ? t('hotels.addBooking') : t('hotels.editBooking')}
           onClose={closeModal}
         >
           {error && (
@@ -985,10 +1037,10 @@ export default function Hotels() {
 
                 <div>
                   <p className="text-sm font-semibold text-purple-800">
-                    Import booking confirmation
+                    {t('hotels.importTitle')}
                   </p>
                   <p className="text-xs text-purple-500 mt-0.5">
-                    Paste Agoda, Booking.com, or hotel email text.
+                    {t('hotels.importBody')}
                   </p>
                 </div>
               </div>
@@ -1010,7 +1062,7 @@ export default function Hotels() {
                     setImportMessage('')
                   }}
                   className="w-full min-h-36 rounded-xl border border-purple-100 bg-white px-4 py-3 text-sm text-gray-700 focus:outline-none focus:border-purple-400 resize-none"
-                  placeholder="Paste booking confirmation email text here..."
+                  placeholder={t('hotels.importPlaceholder')}
                 />
 
                 {importMessage && (
@@ -1024,21 +1076,21 @@ export default function Hotels() {
                   onClick={importConfirmation}
                   className="mt-3 w-full bg-purple-500 text-white rounded-xl py-2.5 text-sm font-semibold"
                 >
-                  Auto Fill Hotel Info
+                  {t('hotels.autoFill')}
                 </button>
               </div>
             )}
           </div>
 
           <InputField
-            label="Hotel / Stay Name"
+            label={t('hotels.hotelName')}
             value={form.name}
             onChange={updateForm('name')}
             placeholder="Hilton Tokyo Bay"
           />
 
           <InputField
-            label="Area"
+            label={t('hotels.area')}
             value={form.area}
             onChange={updateForm('area')}
             placeholder="Shinjuku, Tokyo"
@@ -1046,14 +1098,14 @@ export default function Hotels() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="Check-in Date"
+              label={t('hotels.checkInDate')}
               type="date"
               value={form.checkIn}
               onChange={updateForm('checkIn')}
             />
 
             <InputField
-              label="Check-out Date"
+              label={t('hotels.checkOutDate')}
               type="date"
               value={form.checkOut}
               onChange={updateForm('checkOut')}
@@ -1062,7 +1114,7 @@ export default function Hotels() {
 
           <div className="grid grid-cols-2 gap-3">
             <InputField
-              label="Number of Rooms"
+              label={t('hotels.numberRooms')}
               type="number"
               value={form.rooms}
               onChange={updateForm('rooms')}
@@ -1070,23 +1122,26 @@ export default function Hotels() {
             />
 
             <SelectField
-              label="Room Type"
+              label={t('hotels.roomType')}
               value={form.roomCapacity}
               onChange={updateForm('roomCapacity')}
-              options={ROOM_CAPACITY_OPTIONS}
+              options={ROOM_CAPACITY_OPTIONS.map((option) => ({
+                ...option,
+                label: t('hotels.personRoom', { count: option.value }),
+              }))}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <SelectField
-              label="Currency"
+              label={t('flights.currency')}
               value={form.currency}
               onChange={updateForm('currency')}
               options={CURRENCY_OPTIONS}
             />
 
             <InputField
-              label="Price / Night"
+              label={t('hotels.priceNight')}
               type="number"
               value={form.pricePerNight}
               onChange={updateForm('pricePerNight')}
@@ -1096,60 +1151,63 @@ export default function Hotels() {
 
           <div className="mb-4 rounded-xl bg-purple-50 px-4 py-3">
             <p className="text-xs font-medium text-purple-600 mb-1">
-              Auto Accommodation Total
+              {t('hotels.autoTotal')}
             </p>
             <p className="text-sm font-semibold text-purple-800">
               {formatMoney(getHotelTotal(form), form.currency)}
             </p>
             <p className="text-xs text-purple-500 mt-1">
-              This value is saved and can be used later in the Budget page.
+              {t('hotels.autoTotalBody')}
             </p>
           </div>
 
           <SelectField
-            label="Booking Status"
+            label={t('hotels.bookingStatus')}
             value={form.status}
             onChange={updateForm('status')}
-            options={STATUS_OPTIONS}
+            options={STATUS_OPTIONS.map((option) => ({
+              ...option,
+              label: t(`common.${option.value}`),
+            }))}
           />
 
           <InputField
-            label="Booking Reference"
+            label={t('hotels.bookingRef')}
             value={form.bookingRef}
             onChange={updateForm('bookingRef')}
             placeholder="Booking.com / Expedia / Hotel confirmation number"
           />
 
           <InputField
-            label="Google Maps Link"
+            label={t('timeline.mapsLink')}
             value={form.mapUrl}
             onChange={updateForm('mapUrl')}
             placeholder="https://maps.google.com/..."
           />
 
           <InputField
-            label="WiFi Info"
+            label={t('hotels.wifiInfo')}
             value={form.wifi}
             onChange={updateForm('wifi')}
             placeholder="Network name / password"
           />
 
           <InputField
-            label="Phone"
+            label={t('hotels.phone')}
             value={form.phone}
             onChange={updateForm('phone')}
             placeholder="+81..."
           />
 
           <InputField
-            label="Address"
+            label={t('hotels.address')}
             value={form.address}
             onChange={updateForm('address')}
             placeholder="Full hotel address"
           />
 
           <InputField
-            label="Notes"
+            label={t('timeline.notes')}
             value={form.notes}
             onChange={updateForm('notes')}
             placeholder="Check-in reminder, parking, breakfast, luggage storage..."
@@ -1160,7 +1218,7 @@ export default function Hotels() {
             onClick={save}
             className="w-full bg-purple-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            {modal.mode === 'add' ? 'Save Hotel Booking' : 'Save Changes'}
+            {modal.mode === 'add' ? t('hotels.saveBooking') : t('common.saveChanges')}
           </button>
         </EditModal>
       )}

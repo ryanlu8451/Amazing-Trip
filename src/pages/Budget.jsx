@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   CreditCard,
+  Lock,
   Pencil,
   PieChart,
   Plus,
@@ -12,6 +13,9 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
+import { useAuthStore } from '../store/authStore'
+import { canEditTrip } from '../lib/tripCloud'
+import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
 
@@ -235,6 +239,8 @@ export default function Budget() {
     updateFlight,
     updateHotel,
   } = useTripStore()
+  const { user } = useAuthStore()
+  const { t } = useTranslation()
 
   const [showTripPicker, setShowTripPicker] = useState(false)
   const [settingsModal, setSettingsModal] = useState(false)
@@ -249,6 +255,7 @@ export default function Budget() {
   const [error, setError] = useState('')
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
+  const userCanEdit = canEditTrip(selectedTrip, user)
 
   const budgetCurrency = getBudgetCurrency(selectedTrip)
   const budgetLimit = getBudgetLimit(selectedTrip)
@@ -283,6 +290,11 @@ export default function Budget() {
   }
 
   const openSettings = () => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     setShowTripPicker(false)
     setSettingsForm({
       budgetLimit: selectedTrip?.budgetLimit || selectedTrip?.totalBudget || '',
@@ -294,6 +306,11 @@ export default function Budget() {
 
   const saveSettings = () => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -327,6 +344,11 @@ export default function Budget() {
   }
 
   const openAddAllocation = () => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     setAllocationForm(emptyAllocation)
     setError('')
     setAllocationModal({
@@ -336,6 +358,11 @@ export default function Budget() {
   }
 
   const openEditAllocation = (item) => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     const meta = getCategoryMeta(item.category || 'custom')
 
     setAllocationForm({
@@ -357,8 +384,13 @@ export default function Budget() {
       return
     }
 
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     if (!allocationForm.label || Number(allocationForm.amount || 0) <= 0) {
-      setError('Please select a category and enter an amount.')
+      setError(t('budget.required'))
       return
     }
 
@@ -380,6 +412,11 @@ export default function Budget() {
   }
 
   const openAddExpense = () => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     setExpenseForm(emptyExpense)
     setError('')
     setExpenseModal({
@@ -389,6 +426,11 @@ export default function Budget() {
   }
 
   const openEditExpense = (item) => {
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     const meta = getCategoryMeta(item.category || 'custom')
 
     setExpenseForm({
@@ -411,8 +453,13 @@ export default function Budget() {
       return
     }
 
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
     if (!expenseForm.label || Number(expenseForm.amount || 0) <= 0) {
-      setError('Please select a category and enter an amount.')
+      setError(t('budget.required'))
       return
     }
 
@@ -438,7 +485,12 @@ export default function Budget() {
       return
     }
 
-    const confirmed = window.confirm('Delete this budget item?')
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
+      return
+    }
+
+    const confirmed = window.confirm(t('budget.deleteConfirm'))
 
     if (confirmed) {
       setActiveTrip(selectedTrip.id)
@@ -448,6 +500,11 @@ export default function Budget() {
 
   const openSourceEditor = (summary) => {
     if (!selectedTrip) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -465,7 +522,7 @@ export default function Budget() {
 
       setSourceModal({
         type: 'flight',
-        title: 'Edit Flight Spending',
+        title: t('budget.editFlightSpending'),
       })
       return
     }
@@ -484,7 +541,7 @@ export default function Budget() {
 
       setSourceModal({
         type: 'hotel',
-        title: 'Edit Accommodation Spending',
+        title: t('budget.editHotelSpending'),
       })
       return
     }
@@ -513,6 +570,11 @@ export default function Budget() {
 
   const saveSourceEditor = () => {
     if (!selectedTrip || !sourceModal) {
+      return
+    }
+
+    if (!userCanEdit) {
+      setError(t('common.noEditPermission'))
       return
     }
 
@@ -574,10 +636,10 @@ export default function Budget() {
           <div>
             <p className="text-green-100 text-sm">AMAZING TRIP</p>
             <h1 className="text-white text-2xl font-bold mt-1">
-              Budget
+              {t('budget.title')}
             </h1>
             <p className="text-white/80 text-sm mt-1">
-              Select one trip and manage budget, spending, and balance.
+              {t('budget.subtitle')}
             </p>
           </div>
 
@@ -587,13 +649,13 @@ export default function Budget() {
             className="mt-4 w-full bg-white/20 rounded-2xl px-4 py-3 flex items-center justify-between text-left"
           >
             <div className="min-w-0">
-              <p className="text-xs text-white/70">Currently Viewing</p>
+              <p className="text-xs text-white/70">{t('common.currentlyViewing')}</p>
               <p className="text-white text-sm font-semibold truncate mt-0.5">
                 {selectedTrip
                   ? `${selectedTrip.coverEmoji || '🌍'} ${
-                      selectedTrip.name || selectedTrip.destination || 'Untitled Trip'
+                      selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')
                     }`
-                  : 'Select a trip'}
+                  : t('common.selectTrip')}
               </p>
             </div>
 
@@ -610,10 +672,10 @@ export default function Budget() {
               {trips.length === 0 ? (
                 <div className="px-4 py-5 text-center">
                   <p className="text-sm font-medium text-gray-500">
-                    No trips available
+                    {t('common.noTripsAvailable')}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Create a trip first from Home or Trip Management.
+                    {t('common.createTripFirst')}
                   </p>
                 </div>
               ) : (
@@ -636,7 +698,7 @@ export default function Budget() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-gray-800 truncate">
-                            {trip.name || trip.destination || 'Untitled Trip'}
+                          {trip.name || trip.destination || t('common.untitledTrip')}
                           </p>
 
                           {isSelected && (
@@ -645,7 +707,7 @@ export default function Budget() {
                         </div>
 
                         <p className="text-xs text-gray-400 mt-1 truncate">
-                          {trip.destination || 'No destination'}
+                          {trip.destination || t('common.noDestination')}
                         </p>
                       </div>
                     </button>
@@ -662,13 +724,22 @@ export default function Budget() {
         {!selectedTrip ? (
           <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
             <Wallet size={34} className="text-green-500 mx-auto mb-3" />
-            <h2 className="font-semibold text-gray-800">No trip selected</h2>
+            <h2 className="font-semibold text-gray-800">{t('common.selectTrip')}</h2>
             <p className="text-sm text-gray-400 mt-2">
               Create or select a trip first, then manage its budget.
             </p>
           </div>
         ) : (
           <>
+            {!userCanEdit && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                <Lock size={18} className="text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800">
+              {t('common.viewOnlyBudget')}
+                </p>
+              </div>
+            )}
+
             <div
               className={`rounded-3xl shadow-sm p-5 ${
                 isOverBudget ? 'bg-red-500 text-white' : 'bg-white text-gray-800'
@@ -681,7 +752,7 @@ export default function Budget() {
                       isOverBudget ? 'text-white/75' : 'text-gray-400'
                     }`}
                   >
-                    Budget Overview
+                    {t('budget.overview')}
                   </p>
                   <p className="text-3xl font-bold mt-1">
                     {formatMoney(budgetLimit, budgetCurrency)}
@@ -691,20 +762,23 @@ export default function Budget() {
                       isOverBudget ? 'text-white/75' : 'text-gray-400'
                     }`}
                   >
-                    Total budget for this trip
+                    {t('budget.totalBudgetBody')}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={openSettings}
+                  disabled={!userCanEdit}
                   className={`rounded-xl px-3 py-2 text-xs font-semibold shrink-0 ${
-                    isOverBudget
+                    !userCanEdit
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : isOverBudget
                       ? 'bg-white text-red-600'
                       : 'bg-green-50 text-green-600'
                   }`}
                 >
-                  Set
+                  {t('budget.set')}
                 </button>
               </div>
 
@@ -719,7 +793,7 @@ export default function Budget() {
                       isOverBudget ? 'text-white/75' : 'text-green-600'
                     }`}
                   >
-                    Paid
+                    {t('budget.paid')}
                   </p>
                   <p className="text-xl font-bold mt-1">
                     {formatMoney(paidTotal, budgetCurrency)}
@@ -736,7 +810,7 @@ export default function Budget() {
                       isOverBudget ? 'text-white/75' : 'text-gray-500'
                     }`}
                   >
-                    Balance
+                    {t('budget.balance')}
                   </p>
                   <p
                     className={`text-xl font-bold mt-1 ${
@@ -752,7 +826,7 @@ export default function Budget() {
                 <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 flex items-start gap-2">
                   <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
                   <p className="text-xs text-amber-700">
-                    Projected spending may exceed your budget after pending items are paid.
+                    {t('budget.projectedWarning')}
                   </p>
                 </div>
               )}
@@ -761,7 +835,7 @@ export default function Budget() {
                 <div className="mt-4 rounded-2xl bg-white/15 px-4 py-3 flex items-start gap-2">
                   <AlertTriangle size={16} className="text-white mt-0.5 shrink-0" />
                   <p className="text-xs text-white">
-                    Paid spending is over budget. Review actual spending below.
+                    {t('budget.overWarning')}
                   </p>
                 </div>
               )}
@@ -770,7 +844,7 @@ export default function Budget() {
               <div className="bg-white rounded-2xl shadow-sm p-4">
                 <div className="flex items-center gap-2 text-gray-500">
                   <PieChart size={17} />
-                  <span className="text-xs">Allocated</span>
+                  <span className="text-xs">{t('budget.allocated')}</span>
                 </div>
                 <p className="text-xl font-bold text-gray-800 mt-2">
                   {formatMoney(allocatedTotal, budgetCurrency)}
@@ -780,7 +854,7 @@ export default function Budget() {
               <div className="bg-white rounded-2xl shadow-sm p-4">
                 <div className="flex items-center gap-2 text-gray-500">
                   <ReceiptText size={17} />
-                  <span className="text-xs">Pending</span>
+                  <span className="text-xs">{t('common.pending')}</span>
                 </div>
                 <p className="text-xl font-bold text-gray-800 mt-2">
                   {formatMoney(pendingTotal, budgetCurrency)}
@@ -791,19 +865,24 @@ export default function Budget() {
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="font-semibold text-gray-800">Budget Allocation</h2>
+                  <h2 className="font-semibold text-gray-800">{t('budget.allocation')}</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Plan how your total budget should be split.
+                    {t('budget.allocationBody')}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={openAddAllocation}
-                  className="bg-green-50 text-green-600 rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1"
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 ${
+                    userCanEdit
+                      ? 'bg-green-50 text-green-600'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={14} />
-                  Allocate
+                  {t('budget.allocate')}
                 </button>
               </div>
 
@@ -811,10 +890,10 @@ export default function Budget() {
                 <div className="rounded-2xl bg-gray-50 p-5 text-center">
                   <PieChart size={28} className="text-gray-300 mx-auto mb-3" />
                   <p className="text-sm font-medium text-gray-500">
-                    No budget allocation yet.
+                    {t('budget.noAllocationTitle')}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Add categories like flights, hotels, food, and transportation.
+                    {t('budget.noAllocationBody')}
                   </p>
                 </div>
               ) : (
@@ -843,21 +922,23 @@ export default function Budget() {
                           />
                         </div>
 
-                        <div className="flex items-center justify-end gap-3 mt-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditAllocation(item)}
-                          >
-                            <Pencil size={14} className="text-gray-400" />
-                          </button>
+                        {userCanEdit && (
+                          <div className="flex items-center justify-end gap-3 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditAllocation(item)}
+                            >
+                              <Pencil size={14} className="text-gray-400" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => removeBudgetItem(item.id)}
-                          >
-                            <Trash2 size={14} className="text-rose-400" />
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => removeBudgetItem(item.id)}
+                            >
+                              <Trash2 size={14} className="text-rose-400" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -866,7 +947,7 @@ export default function Budget() {
                     <div className="rounded-xl bg-red-50 px-4 py-3 flex items-start gap-2">
                       <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
                       <p className="text-xs text-red-600">
-                        Allocation is higher than your total budget.
+                        {t('budget.allocationHigh')}
                       </p>
                     </div>
                   )}
@@ -877,19 +958,24 @@ export default function Budget() {
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
                 <div>
-                  <h2 className="font-semibold text-gray-800">Actual Spending</h2>
+                  <h2 className="font-semibold text-gray-800">{t('budget.actualSpending')}</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    Tap a spending row to edit its source amounts.
+                    {t('budget.actualSpendingBody')}
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={openAddExpense}
-                  className="bg-green-50 text-green-600 rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1"
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 ${
+                    userCanEdit
+                      ? 'bg-green-50 text-green-600'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Plus size={14} />
-                  Expense
+                  {t('budget.expense')}
                 </button>
               </div>
 
@@ -897,10 +983,10 @@ export default function Budget() {
                 <div className="p-6 text-center">
                   <CreditCard size={30} className="text-gray-300 mx-auto mb-3" />
                   <p className="text-sm font-medium text-gray-500">
-                    No actual spending yet.
+                    {t('budget.noSpendingTitle')}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Add flight, hotel, or manual expenses to start tracking.
+                    {t('budget.noSpendingBody')}
                   </p>
                 </div>
               ) : (
@@ -910,7 +996,12 @@ export default function Budget() {
                       key={`${item.source}-${item.category}-${item.label}`}
                       type="button"
                       onClick={() => openSourceEditor(item)}
-                      className="w-full px-5 py-4 text-left active:bg-green-50 hover:bg-gray-50 transition"
+                      disabled={!userCanEdit}
+                      className={`w-full px-5 py-4 text-left transition ${
+                        userCanEdit
+                          ? 'active:bg-green-50 hover:bg-gray-50'
+                          : 'cursor-default'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
@@ -923,11 +1014,13 @@ export default function Budget() {
                               <p className="text-sm font-semibold text-gray-800 truncate">
                                 {item.label}
                               </p>
-                              <Pencil size={12} className="text-gray-300 shrink-0" />
+                              {userCanEdit && (
+                                <Pencil size={12} className="text-gray-300 shrink-0" />
+                              )}
                             </div>
 
                             <p className="text-xs text-gray-400 mt-0.5">
-                              Paid {formatMoney(item.paid, budgetCurrency)} · Pending{' '}
+                              {t('budget.paid')} {formatMoney(item.paid, budgetCurrency)} · {t('common.pending')}{' '}
                               {formatMoney(item.pending, budgetCurrency)}
                             </p>
                           </div>
@@ -943,7 +1036,7 @@ export default function Budget() {
               )}
 
               <div className="flex items-center justify-between px-5 py-4 bg-gray-50">
-                <span className="font-bold text-gray-800">Projected Total</span>
+                <span className="font-bold text-gray-800">{t('budget.projectedTotal')}</span>
                 <span
                   className={`font-bold text-lg ${
                     projectedBalance < 0 ? 'text-red-600' : 'text-green-600'
@@ -957,9 +1050,9 @@ export default function Budget() {
             {expenseItems.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-50">
-                  <h2 className="font-semibold text-gray-800">Manual Expenses</h2>
+                  <h2 className="font-semibold text-gray-800">{t('budget.manualExpenses')}</h2>
                   <p className="text-xs text-gray-400 mt-1">
-                    These are expenses you added manually.
+                    {t('budget.manualExpensesBody')}
                   </p>
                 </div>
 
@@ -980,7 +1073,7 @@ export default function Budget() {
                               {item.label || meta.defaultLabel}
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">
-                              {item.paymentStatus === 'pending' ? 'Pending' : 'Paid'}
+                              {item.paymentStatus === 'pending' ? t('common.pending') : t('budget.paid')}
                               {item.note ? ` · ${item.note}` : ''}
                             </p>
                           </div>
@@ -991,19 +1084,23 @@ export default function Budget() {
                             {formatMoney(item.amount, budgetCurrency)}
                           </span>
 
-                          <button
-                            type="button"
-                            onClick={() => openEditExpense(item)}
-                          >
-                            <Pencil size={14} className="text-gray-400" />
-                          </button>
+                          {userCanEdit && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEditExpense(item)}
+                              >
+                                <Pencil size={14} className="text-gray-400" />
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => removeBudgetItem(item.id)}
-                          >
-                            <Trash2 size={14} className="text-rose-400" />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => removeBudgetItem(item.id)}
+                              >
+                                <Trash2 size={14} className="text-rose-400" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     )
@@ -1016,9 +1113,9 @@ export default function Budget() {
       </div>
 
       {settingsModal && (
-        <EditModal title="Set Total Budget" onClose={() => setSettingsModal(false)}>
+        <EditModal title={t('budget.setTotal')} onClose={() => setSettingsModal(false)}>
           <SelectField
-            label="Budget Currency"
+            label={t('budget.budgetCurrency')}
             value={settingsForm.budgetCurrency}
             onChange={(value) =>
               setSettingsForm((form) => ({ ...form, budgetCurrency: value }))
@@ -1027,7 +1124,7 @@ export default function Budget() {
           />
 
           <InputField
-            label="Total Budget"
+            label={t('budget.totalBudget')}
             type="number"
             value={settingsForm.budgetLimit}
             onChange={(value) =>
@@ -1041,14 +1138,14 @@ export default function Budget() {
             onClick={saveSettings}
             className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            Save Budget
+            {t('budget.saveBudget')}
           </button>
         </EditModal>
       )}
 
       {allocationModal && (
         <EditModal
-          title={allocationModal.mode === 'add' ? 'Add Allocation' : 'Edit Allocation'}
+          title={allocationModal.mode === 'add' ? t('budget.addAllocation') : t('budget.editAllocation')}
           onClose={() => setAllocationModal(null)}
         >
           {error && (
@@ -1058,19 +1155,19 @@ export default function Budget() {
           )}
 
           <SelectField
-            label="Category"
+            label={t('budget.category')}
             value={allocationForm.category}
             onChange={(value) => updateCategoryForm('allocation', value)}
             options={CATEGORY_OPTIONS.map((item) => ({
               value: item.value,
-              label: item.label,
+              label: `${item.emoji} ${t(`budget.category.${item.value}`)}`,
             }))}
           />
 
           {allocationForm.category === 'custom' && (
             <>
               <InputField
-                label="Custom Emoji"
+                label={t('budget.customEmoji')}
                 value={allocationForm.emoji}
                 onChange={(value) =>
                   setAllocationForm((form) => ({ ...form, emoji: value }))
@@ -1079,7 +1176,7 @@ export default function Budget() {
               />
 
               <InputField
-                label="Custom Category Name"
+                label={t('budget.customCategory')}
                 value={allocationForm.label}
                 onChange={(value) =>
                   setAllocationForm((form) => ({ ...form, label: value }))
@@ -1091,7 +1188,7 @@ export default function Budget() {
 
           {allocationForm.category !== 'custom' && (
             <InputField
-              label="Category Name"
+              label={t('budget.categoryName')}
               value={allocationForm.label}
               onChange={(value) =>
                 setAllocationForm((form) => ({ ...form, label: value }))
@@ -1101,7 +1198,7 @@ export default function Budget() {
           )}
 
           <InputField
-            label="Allocated Amount"
+            label={t('budget.allocatedAmount')}
             type="number"
             value={allocationForm.amount}
             onChange={(value) =>
@@ -1115,14 +1212,14 @@ export default function Budget() {
             onClick={saveAllocation}
             className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            {allocationModal.mode === 'add' ? 'Save Allocation' : 'Save Changes'}
+            {allocationModal.mode === 'add' ? t('budget.saveAllocation') : t('common.saveChanges')}
           </button>
         </EditModal>
       )}
 
       {expenseModal && (
         <EditModal
-          title={expenseModal.mode === 'add' ? 'Add Expense' : 'Edit Expense'}
+          title={expenseModal.mode === 'add' ? t('budget.addExpense') : t('budget.editExpense')}
           onClose={() => setExpenseModal(null)}
         >
           {error && (
@@ -1132,19 +1229,19 @@ export default function Budget() {
           )}
 
           <SelectField
-            label="Category"
+            label={t('budget.category')}
             value={expenseForm.category}
             onChange={(value) => updateCategoryForm('expense', value)}
             options={CATEGORY_OPTIONS.map((item) => ({
               value: item.value,
-              label: item.label,
+              label: `${item.emoji} ${t(`budget.category.${item.value}`)}`,
             }))}
           />
 
           {expenseForm.category === 'custom' && (
             <>
               <InputField
-                label="Custom Emoji"
+                label={t('budget.customEmoji')}
                 value={expenseForm.emoji}
                 onChange={(value) =>
                   setExpenseForm((form) => ({ ...form, emoji: value }))
@@ -1153,7 +1250,7 @@ export default function Budget() {
               />
 
               <InputField
-                label="Custom Category Name"
+                label={t('budget.customCategory')}
                 value={expenseForm.label}
                 onChange={(value) =>
                   setExpenseForm((form) => ({ ...form, label: value }))
@@ -1165,7 +1262,7 @@ export default function Budget() {
 
           {expenseForm.category !== 'custom' && (
             <InputField
-              label="Expense Name"
+              label={t('budget.expenseName')}
               value={expenseForm.label}
               onChange={(value) =>
                 setExpenseForm((form) => ({ ...form, label: value }))
@@ -1175,7 +1272,7 @@ export default function Budget() {
           )}
 
           <InputField
-            label="Amount"
+            label={t('budget.amount')}
             type="number"
             value={expenseForm.amount}
             onChange={(value) =>
@@ -1185,16 +1282,19 @@ export default function Budget() {
           />
 
           <SelectField
-            label="Payment Status"
+            label={t('budget.paymentStatus')}
             value={expenseForm.paymentStatus}
             onChange={(value) =>
               setExpenseForm((form) => ({ ...form, paymentStatus: value }))
             }
-            options={PAYMENT_STATUS_OPTIONS}
+            options={PAYMENT_STATUS_OPTIONS.map((option) => ({
+              ...option,
+              label: option.value === 'paid' ? t('budget.paid') : t('common.pending'),
+            }))}
           />
 
           <InputField
-            label="Note"
+            label={t('budget.note')}
             value={expenseForm.note}
             onChange={(value) =>
               setExpenseForm((form) => ({ ...form, note: value }))
@@ -1207,7 +1307,7 @@ export default function Budget() {
             onClick={saveExpense}
             className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            {expenseModal.mode === 'add' ? 'Save Expense' : 'Save Changes'}
+            {expenseModal.mode === 'add' ? t('budget.saveExpense') : t('common.saveChanges')}
           </button>
         </EditModal>
       )}
@@ -1217,10 +1317,10 @@ export default function Budget() {
           {sourceEditForm.length === 0 ? (
             <div className="rounded-2xl bg-gray-50 p-5 text-center mb-4">
               <p className="text-sm font-medium text-gray-500">
-                No source items found.
+                {t('budget.noSourceTitle')}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                Add flights or hotels first, then edit imported spending here.
+                {t('budget.noSourceBody')}
               </p>
             </div>
           ) : (
@@ -1241,14 +1341,14 @@ export default function Budget() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <SelectField
-                      label="Currency"
+                      label={t('flights.currency')}
                       value={item.currency}
                       onChange={(value) => updateSourceItem(item.id, 'currency', value)}
                       options={CURRENCY_OPTIONS}
                     />
 
                     <InputField
-                      label="Amount"
+                      label={t('budget.amount')}
                       type="number"
                       value={item.amount}
                       onChange={(value) => updateSourceItem(item.id, 'amount', value)}
@@ -1257,10 +1357,13 @@ export default function Budget() {
                   </div>
 
                   <SelectField
-                    label="Booking Status"
+                    label={t('hotels.bookingStatus')}
                     value={item.status}
                     onChange={(value) => updateSourceItem(item.id, 'status', value)}
-                    options={BOOKING_STATUS_OPTIONS}
+                    options={BOOKING_STATUS_OPTIONS.map((option) => ({
+                      ...option,
+                      label: t(`common.${option.value}`),
+                    }))}
                   />
                 </div>
               ))}
@@ -1272,7 +1375,7 @@ export default function Budget() {
             onClick={saveSourceEditor}
             className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
           >
-            Save Imported Spending
+            {t('budget.saveImported')}
           </button>
         </EditModal>
       )}
