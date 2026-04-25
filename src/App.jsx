@@ -10,6 +10,7 @@ import Tips from './pages/Tips'
 import TripSettings from './pages/TripSettings'
 import Login from './pages/Login'
 import { useAuthStore } from './store/authStore'
+import { useTripCloudSync } from './hooks/useTripCloudSync'
 
 function App() {
   const {
@@ -17,6 +18,8 @@ function App() {
     user,
     startAuthListener,
   } = useAuthStore()
+
+  useTripCloudSync(user)
 
   useEffect(() => {
     const unsubscribe = startAuthListener()

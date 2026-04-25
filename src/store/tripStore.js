@@ -181,11 +181,26 @@ function updateActiveTripSection(state, sectionName, newSectionValue) {
   }
 }
 
+function getStateFromTrips(trips, activeTripId) {
+  const activeTrip =
+    trips.find((trip) => trip.id === activeTripId) ||
+    trips[0] ||
+    null
+
+  return {
+    trips,
+    activeTripId: activeTrip ? activeTrip.id : '',
+    ...getActiveTripState(activeTrip),
+  }
+}
+
 export const useTripStore = create(
   persist(
     (set) => ({
       trips: [defaultTrip],
       activeTripId: defaultTrip.id,
+      cloudReady: false,
+      cloudError: '',
 
       // Backward-compatible active trip data
       trip: getTripInfo(defaultTrip),
@@ -194,6 +209,21 @@ export const useTripStore = create(
       budget: defaultBudget,
       timeline: defaultTimeline,
       tips: defaultTips,
+
+      setTripsFromCloud: (cloudTrips) => {
+        set((state) => ({
+          ...getStateFromTrips(cloudTrips, state.activeTripId),
+          cloudReady: true,
+          cloudError: '',
+        }))
+      },
+
+      setCloudError: (message) => {
+        set({
+          cloudReady: true,
+          cloudError: message,
+        })
+      },
 
       // Trip management
       addTrip: (tripData) => {
@@ -210,6 +240,12 @@ export const useTripStore = create(
           budget: [],
           timeline: [],
           tips: emptyTips,
+          status: tripData.status || 'planning',
+          isHidden: Boolean(tripData.isHidden),
+          ownerId: tripData.ownerId || '',
+          ownerEmail: tripData.ownerEmail || '',
+          memberEmails: tripData.memberEmails || [],
+          memberRoles: tripData.memberRoles || {},
         }
 
         set((state) => ({
@@ -233,12 +269,9 @@ export const useTripStore = create(
       deleteTrip: (tripId) => {
         set((state) => {
           const remainingTrips = state.trips.filter((trip) => trip.id !== tripId)
-          const nextActiveTrip = remainingTrips.length > 0 ? remainingTrips[0] : null
 
           return {
-            trips: remainingTrips,
-            activeTripId: nextActiveTrip ? nextActiveTrip.id : '',
-            ...getActiveTripState(nextActiveTrip),
+            ...getStateFromTrips(remainingTrips, state.activeTripId),
           }
         })
       },

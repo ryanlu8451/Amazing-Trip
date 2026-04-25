@@ -19,6 +19,35 @@ npm run dev
 
 Firebase keys for a web app are not passwords, but `.env.local` should stay local because each developer or deployment can use a different project.
 
+## Firestore Sharing Setup
+
+1. In Firebase Console, open Firestore Database.
+2. Create a database.
+3. Start in production mode.
+4. Choose a nearby region.
+5. Deploy rules from this repo:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Trips are stored in the `trips` collection. A signed-in user can see a trip when their Google email is listed in `memberEmails`.
+
+## PWA / Mobile Install
+
+This app includes a web app manifest, icon, and service worker. After deploying to Firebase Hosting, friends can open the hosted URL on mobile and install it:
+
+- Android Chrome: menu → Add to Home screen / Install app
+- iPhone Safari: Share → Add to Home Screen
+
+Deploy to Firebase Hosting:
+
+```bash
+npm run deploy
+```
+
+After deploy, add the hosting domain to Firebase Authentication → Settings → Authorized domains.
+
 ## Build
 
 ```bash
