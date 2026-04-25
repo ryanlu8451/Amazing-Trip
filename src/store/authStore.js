@@ -1,10 +1,15 @@
 import { create } from 'zustand'
 import {
+  browserLocalPersistence,
+  getRedirectResult,
   onAuthStateChanged,
+  setPersistence,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from 'firebase/auth'
 import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase'
+import { getBrowserEnvironment } from '../lib/browser'
 
 function toUserProfile(user) {
   if (!user) {
@@ -35,6 +40,27 @@ export const useAuthStore = create((set) => ({
       return () => {}
     }
 
+    setPersistence(auth, browserLocalPersistence).catch(() => {
+      set({ error: 'Could not enable persistent sign-in for this browser.' })
+    })
+
+    getRedirectResult(auth).catch((error) => {
+      if (error.code === 'auth/no-auth-event') {
+        return
+      }
+
+      if (error.code === 'auth/unauthorized-domain') {
+        set({
+          error: 'This domain is not authorized in Firebase Authentication.',
+        })
+        return
+      }
+
+      set({
+        error: error.message || 'Could not finish Google sign-in.',
+      })
+    })
+
     return onAuthStateChanged(
       auth,
       (firebaseUser) => {
@@ -60,13 +86,34 @@ export const useAuthStore = create((set) => ({
       return
     }
 
+    const browser = getBrowserEnvironment()
+
+    if (browser.isEmbeddedBrowser) {
+      set({
+        error: 'Google blocks sign-in inside this in-app browser. Please open Amazing Trip in Safari or Chrome, then try again.',
+      })
+      return
+    }
+
     set({ error: '' })
 
     try {
+      if (browser.isMobile) {
+        await signInWithRedirect(auth, googleProvider)
+        return
+      }
+
       await signInWithPopup(auth, googleProvider)
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user') {
         set({ error: 'Sign-in was cancelled.' })
+        return
+      }
+
+      if (error.code === 'auth/unauthorized-domain') {
+        set({
+          error: 'This domain is not authorized in Firebase Authentication.',
+        })
         return
       }
 

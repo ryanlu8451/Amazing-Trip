@@ -1,5 +1,6 @@
-import { Loader2, Mail, Plane, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Loader2, Mail, Plane, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import { getBrowserEnvironment, getExternalBrowserName } from '../lib/browser'
 
 export default function Login() {
   const {
@@ -7,6 +8,9 @@ export default function Login() {
     isConfigured,
     signInWithGoogle,
   } = useAuthStore()
+  const browser = getBrowserEnvironment()
+  const externalBrowserName = getExternalBrowserName()
+  const currentUrl = window.location.href
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-800 px-5 py-10 flex items-center justify-center">
@@ -24,6 +28,25 @@ export default function Login() {
         <p className="text-sm text-gray-500 mt-3">
           Use your Google account to access your travel plans. This also prepares the app for future trip sharing with other users.
         </p>
+
+        {browser.isEmbeddedBrowser && (
+          <div className="mt-5 rounded-2xl bg-amber-50 border border-amber-100 p-4">
+            <div className="flex gap-3">
+              <AlertTriangle size={19} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  Open in {externalBrowserName} to sign in
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  Google blocks login inside some in-app browsers like LINE, Instagram, Facebook, Gmail, and Google App.
+                </p>
+                <p className="text-xs text-amber-800 mt-2 break-all">
+                  {currentUrl}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 space-y-3">
           <div className="rounded-2xl bg-gray-50 p-4 flex gap-3">
@@ -71,10 +94,10 @@ export default function Login() {
         <button
           type="button"
           onClick={signInWithGoogle}
-          disabled={!isConfigured}
+          disabled={!isConfigured || browser.isEmbeddedBrowser}
           className="mt-6 w-full bg-gray-950 text-white rounded-2xl py-3.5 font-semibold text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {isConfigured ? (
+          {isConfigured && !browser.isEmbeddedBrowser ? (
             <>
               <Mail size={17} />
               Continue with Google
