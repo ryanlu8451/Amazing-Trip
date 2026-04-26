@@ -17,6 +17,7 @@ const defaultTripInfo = {
   endDate: '2025-07-08',
   coverEmoji: '🗼',
   members: ['爸爸', '媽媽', '小明', '小花'],
+  tripType: 'solo',
 }
 
 const defaultFlights = [
@@ -125,6 +126,7 @@ const emptyTripInfo = {
   endDate: '',
   coverEmoji: '🌍',
   members: [],
+  tripType: 'solo',
 }
 
 function getTripInfo(trip) {
@@ -136,6 +138,7 @@ function getTripInfo(trip) {
     endDate: trip.endDate,
     coverEmoji: trip.coverEmoji,
     members: trip.members,
+    tripType: trip.tripType || 'solo',
   }
 }
 
@@ -235,6 +238,7 @@ export const useTripStore = create(
           endDate: tripData.endDate || '',
           coverEmoji: tripData.coverEmoji || '🌍',
           members: tripData.members || [],
+          tripType: tripData.tripType || 'solo',
           flights: [],
           hotels: [],
           budget: [],
@@ -535,6 +539,7 @@ export const useTripStore = create(
           endDate: oldTripInfo.endDate || '',
           coverEmoji: oldTripInfo.coverEmoji || '🌍',
           members: oldTripInfo.members || [],
+          tripType: oldTripInfo.tripType || 'solo',
           flights: persistedState?.flights || defaultFlights,
           hotels: persistedState?.hotels || defaultHotels,
           budget: persistedState?.budget || defaultBudget,

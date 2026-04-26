@@ -28,7 +28,6 @@ export default function TripSettings() {
   const { user } = useAuthStore()
   const { t } = useTranslation()
 
-  const [tripType, setTripType] = useState('solo')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('viewer')
   const [message, setMessage] = useState('')
@@ -38,6 +37,15 @@ export default function TripSettings() {
   const memberEmails = activeTrip?.memberEmails || []
   const memberRoles = activeTrip?.memberRoles || {}
   const ownerEmail = normalizeEmail(activeTrip?.ownerEmail || user?.email)
+  const tripType = activeTrip?.tripType || 'solo'
+
+  const selectTripType = (nextTripType) => {
+    if (activeTrip && tripType !== nextTripType) {
+      updateTrip({
+        tripType: nextTripType,
+      })
+    }
+  }
 
   const shareTrip = () => {
     const invitedEmail = normalizeEmail(email)
@@ -62,6 +70,7 @@ export default function TripSettings() {
     ]
 
     updateTrip({
+      tripType: 'group',
       memberEmails: nextMemberEmails,
       memberRoles: {
         ...memberRoles,
@@ -70,7 +79,6 @@ export default function TripSettings() {
       },
     })
 
-    setTripType('group')
     setEmail('')
     setRole('viewer')
     setMessage(t('tripSettings.sharedWith', { email: invitedEmail }))
@@ -133,7 +141,7 @@ export default function TripSettings() {
           <div className="grid grid-cols-1 gap-3">
             <button
               type="button"
-              onClick={() => setTripType('solo')}
+              onClick={() => selectTripType('solo')}
               className={`rounded-2xl border p-4 text-left ${
                 tripType === 'solo'
                   ? 'border-blue-300 bg-blue-50'
@@ -155,7 +163,7 @@ export default function TripSettings() {
 
             <button
               type="button"
-              onClick={() => setTripType('group')}
+              onClick={() => selectTripType('group')}
               className={`rounded-2xl border p-4 text-left ${
                 tripType === 'group'
                   ? 'border-indigo-300 bg-indigo-50'

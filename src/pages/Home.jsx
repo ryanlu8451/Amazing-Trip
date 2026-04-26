@@ -25,7 +25,6 @@ const emptyTripForm = {
   startDate: '',
   endDate: '',
   coverEmoji: '🌍',
-  members: [],
 }
 
 function CountdownBadge({ startDate, t }) {
@@ -69,17 +68,6 @@ function getTripDays(startDate, endDate) {
     ) + 1
 
   return days > 0 ? days : 0
-}
-
-function formatMembers(members) {
-  return (members || []).join(', ')
-}
-
-function parseMembers(value) {
-  return value
-    .split(/[,、，]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
 }
 
 function isDateRangeValid(startDate, endDate) {
@@ -149,6 +137,10 @@ export default function Home() {
   const tripDays = getTripDays(trip.startDate, trip.endDate)
   const plannedDays = timeline.length
   const plannedItems = timeline.reduce((sum, day) => sum + (day.items?.length || 0), 0)
+  const isGroupTrip = activeTrip?.tripType === 'group'
+  const ownerEmail = activeTrip?.ownerEmail || user?.email || ''
+  const memberEmails = activeTrip?.memberEmails || []
+  const travelMemberEmails = memberEmails.filter((email) => email && email !== ownerEmail)
 
   const colors = [
     'bg-blue-500',
@@ -327,7 +319,7 @@ export default function Home() {
                 <CountdownBadge startDate={trip.startDate} t={t} />
 
                 <div className="flex justify-center flex-wrap gap-2 mt-4">
-                  {(trip.members || []).map((member) => (
+                  {isGroupTrip && travelMemberEmails.map((member) => (
                     <div
                       key={member}
                       className="bg-white/20 rounded-full px-3 py-1 text-white text-xs"
@@ -578,23 +570,53 @@ export default function Home() {
             </button>
 
             <div className="bg-white rounded-2xl shadow-sm p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Users size={18} className="text-rose-500" />
-                <span className="font-semibold text-gray-800">{t('home.travelMembers')}</span>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Users size={18} className="text-rose-500" />
+                  <span className="font-semibold text-gray-800">{t('home.travelMembers')}</span>
+                </div>
+
+                {isGroupTrip && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/trip-settings')}
+                    className="bg-rose-50 text-rose-600 rounded-full p-2 shrink-0"
+                    aria-label={t('home.inviteMembers')}
+                    title={t('home.inviteMembers')}
+                  >
+                    <Plus size={17} />
+                  </button>
+                )}
               </div>
 
-              {(trip.members || []).length === 0 ? (
-                <p className="text-sm text-gray-400">{t('home.noMembers')}</p>
+              {!isGroupTrip ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-gray-700">{t('home.soloTrip')}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {t('home.soloTripMembersHint')}
+                  </p>
+                </div>
+              ) : travelMemberEmails.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => navigate('/trip-settings')}
+                  className="w-full rounded-2xl border border-dashed border-rose-200 bg-rose-50 p-4 text-left"
+                >
+                  <p className="text-sm font-semibold text-rose-700">{t('home.inviteMembers')}</p>
+                  <p className="text-xs text-rose-500 mt-1">
+                    {t('home.inviteMembersHint')}
+                  </p>
+                </button>
               ) : (
                 <div className="flex gap-3 flex-wrap">
-                  {(trip.members || []).map((member, index) => (
+                  {travelMemberEmails.map((member, index) => (
                     <div key={member} className="flex flex-col items-center gap-1">
                       <div
                         className={`w-12 h-12 ${colors[index % colors.length]} rounded-full flex items-center justify-center text-white font-bold text-lg`}
                       >
-                        {member[0]}
+                        {member[0].toUpperCase()}
                       </div>
-                      <span className="text-xs text-gray-600">{member}</span>
+                      <span className="text-xs text-gray-600 max-w-24 truncate">{member}</span>
                     </div>
                   ))}
                 </div>
@@ -653,23 +675,6 @@ export default function Home() {
             }}
           />
 
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-1">
-              {t('home.membersComma')}
-            </label>
-            <input
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-              value={formatMembers(createForm.members)}
-              onChange={(event) =>
-                setCreateForm((form) => ({
-                  ...form,
-                  members: parseMembers(event.target.value),
-                }))
-              }
-              placeholder="Ryan, Alex, Cindy"
-            />
-          </div>
-
           <button
             type="button"
             onClick={saveNewTrip}
@@ -725,23 +730,6 @@ export default function Home() {
               setEditForm((form) => ({ ...form, endDate: value }))
             }}
           />
-
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-1">
-              {t('home.membersComma')}
-            </label>
-            <input
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-              value={formatMembers(editForm.members || [])}
-              onChange={(event) =>
-                setEditForm((form) => ({
-                  ...form,
-                  members: parseMembers(event.target.value),
-                }))
-              }
-              placeholder="Ryan, Alex, Cindy"
-            />
-          </div>
 
           <button
             type="button"

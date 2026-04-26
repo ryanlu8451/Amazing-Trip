@@ -591,15 +591,15 @@ export default function Hotels() {
         />
       )}
 
-      <div className="bg-gradient-to-br from-purple-500 to-indigo-600 px-6 pt-12 pb-4 shadow-lg shadow-purple-900/10 relative z-20">
-        <div className="max-w-lg mx-auto relative z-40">
+      <div className="bg-gradient-to-br from-purple-500 to-indigo-600 px-6 pt-12 pb-4 shadow-lg shadow-purple-900/10 relative z-40">
+        <div className="max-w-lg mx-auto relative z-50">
           <div>
             <p className="text-purple-200 text-sm">{t('common.amazingTrip')}</p>
             <h1 className="text-white text-2xl font-bold mt-1">
               {t('hotels.title')}
             </h1>
             <p className="text-purple-100 text-sm mt-1">
-              Select one trip and manage only that trip&apos;s stays.
+              {t('hotels.subtitle')}
             </p>
           </div>
 
@@ -609,13 +609,13 @@ export default function Hotels() {
             className="mt-4 w-full bg-white/20 rounded-2xl px-4 py-3 flex items-center justify-between text-left"
           >
             <div className="min-w-0">
-              <p className="text-xs text-purple-100">Currently Viewing</p>
+              <p className="text-xs text-purple-100">{t('common.currentlyViewing')}</p>
               <p className="text-white text-sm font-semibold truncate mt-0.5">
                 {selectedTrip
                   ? `${selectedTrip.coverEmoji || '🌍'} ${
-                      selectedTrip.name || selectedTrip.destination || 'Untitled Trip'
+                      selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')
                     }`
-                  : 'Select a trip'}
+                  : t('common.selectTrip')}
               </p>
             </div>
 
@@ -632,10 +632,10 @@ export default function Hotels() {
               {trips.length === 0 ? (
                 <div className="px-4 py-5 text-center">
                   <p className="text-sm font-medium text-gray-500">
-                    No trips available
+                    {t('common.noTripsAvailable')}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Create a trip first from Home or Trip Management.
+                    {t('common.createTripFirst')}
                   </p>
                 </div>
               ) : (
@@ -658,7 +658,7 @@ export default function Hotels() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-gray-800 truncate">
-                            {trip.name || trip.destination || 'Untitled Trip'}
+                            {trip.name || trip.destination || t('common.untitledTrip')}
                           </p>
 
                           {isSelected && (
@@ -667,7 +667,7 @@ export default function Hotels() {
                         </div>
 
                         <p className="text-xs text-gray-400 mt-1 truncate">
-                          {trip.destination || 'No destination'} ·{' '}
+                          {trip.destination || t('common.noDestination')} ·{' '}
                           {(trip.hotels || []).length} booking
                           {(trip.hotels || []).length === 1 ? '' : 's'}
                         </p>
@@ -688,9 +688,9 @@ export default function Hotels() {
               <BedDouble size={30} className="text-purple-500" />
             </div>
 
-            <h2 className="font-semibold text-gray-800">No trip selected</h2>
+            <h2 className="font-semibold text-gray-800">{t('common.selectTrip')}</h2>
             <p className="text-sm text-gray-400 mt-2">
-              Create or select a trip first, then add hotel bookings.
+              {t('common.createTripFirst')}
             </p>
           </div>
         ) : (
