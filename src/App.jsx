@@ -8,6 +8,7 @@ import Hotels from './pages/Hotels'
 import Budget from './pages/Budget'
 import SettingsPage from './pages/Tips'
 import TripSettings from './pages/TripSettings'
+import Invite from './pages/Invite'
 import Login from './pages/Login'
 import { useAuthStore } from './store/authStore'
 import { useTripCloudSync } from './hooks/useTripCloudSync'
@@ -57,6 +58,7 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/tips" element={<SettingsPage />} />
           <Route path="/trip-settings" element={<TripSettings />} />
+          <Route path="/invite/:tripId" element={<Invite />} />
         </Routes>
       </div>
 

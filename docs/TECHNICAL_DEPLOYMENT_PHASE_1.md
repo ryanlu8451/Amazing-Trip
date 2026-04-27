@@ -1,6 +1,6 @@
 # AMAZING TRIP 第一階段技術與部署報告
 
-更新日期：2026-04-25  
+更新日期：2026-04-27  
 Firebase project：`amazing-trip-f5732`  
 正式測試網址：https://amazing-trip-f5732.web.app  
 GitHub repo：https://github.com/ryanlu8451/Amazing-Trip.git  
@@ -49,6 +49,7 @@ firebase.json
 - `src/lib/tripCloud.js`：Firestore trip helpers / permission helpers
 - `src/lib/browser.js`：in-app browser detection
 - `src/lib/i18n.js`：English / Traditional Chinese translation helper
+- `src/pages/Invite.jsx`：invite link landing / shared trip activation
 - `firestore.rules`：Firestore security rules
 - `public/manifest.webmanifest`：PWA manifest
 - `public/sw.js`：service worker
@@ -148,6 +149,19 @@ tripType: "solo" | "group"
 
 目前新建立的 trip 預設為 `solo`。使用者在 Trip Settings 切換 Solo / Group 時會更新 `tripType`。Home 會依照 `tripType` 決定 Travel Members 小卡顯示 solo 狀態或 group invite 入口。
 
+Invite link：
+
+```text
+/invite/{tripId}
+```
+
+Invite link 不包含 secret token。安全性依賴 Firestore membership：
+
+- Owner 必須先把朋友 Gmail 加入 `memberEmails`。
+- 朋友打開 invite link 後仍需 Google 登入。
+- 登入 email 必須存在於該 trip 的 `memberEmails` 才能讀取 trip。
+- 如果登入 email 不符合，Invite 頁只會顯示無權限提示。
+
 ## 5. Firestore Security Rules
 
 目前 rules 行為：
@@ -179,6 +193,14 @@ tripType: "solo" | "group"
 - Viewer 的 trips 不會嘗試 save to cloud
 - Viewer 不會觸發 delete cloud trip
 - 可減少 Firestore permission-denied error
+
+Invite flow 補充：
+
+- Trip Settings 加入 member 後會更新 Zustand store。
+- Cloud sync 會將 trip 權限寫入 Firestore。
+- 為了讓使用者分享連結前更快落地，Invite 動作也會直接呼叫 `saveTripToCloud` 嘗試立即保存。
+- 被邀請人登入後，`useTripCloudSync` 會以 `memberEmails array-contains user.email` 查詢可見 trips。
+- Invite 頁找到 matching trip 後呼叫 `setActiveTrip(tripId)`。
 
 ## 7. i18n / Language Settings
 
@@ -290,12 +312,16 @@ firebase deploy --only firestore:rules
 - Firebase Hosting 初次部署成功
 - 正式測試網址可開啟
 - PWA 檔案已加入
-- GitHub 最新 commit 已 push
+- Invite link sharing 版本已部署到 Firebase Hosting
+- Firestore rules 已部署
+- 正式 `/invite/:tripId` deep link 已確認回應正常
 
-尚未確認：
+最近部署：
 
-- 最新 UI/UX 簡化 commit 是否已 deploy 到 Firebase Hosting
-- 最新 `firestore.rules` 是否已 deploy
+```text
+2026-04-27
+npx firebase deploy --only hosting,firestore:rules
+```
 
 重要提醒：
 
@@ -360,6 +386,12 @@ Some chunks are larger than 500 kB after minification.
 - 測試 editor 是否無法改 memberRoles
 - 測試 viewer 是否完全不能寫入
 
+目前產品決策：
+
+- 不做 invite status / pending / accepted。
+- 不自動寄 email。
+- 目前維持 0 元成本，使用 Web Share API + clipboard fallback。
+
 ### 12.2 Auth / OAuth 設定
 
 Google login 對 domain 與 redirect URI 很敏感。
@@ -396,7 +428,30 @@ Google login 對 domain 與 redirect URI 很敏感。
 - `src/pages/TripSettings.jsx`
   - Solo / Group trip type 直接寫入 trip data
   - 邀請成員仍集中在 Trip Settings
+  - 加入 invite link、native share sheet、copy link fallback
+  - Owner 可變更 member role、移除 member
+- `src/pages/Invite.jsx`
+  - 處理 `/invite/:tripId`
+  - 登入後確認 shared trip 權限
+  - 權限符合時自動選取 trip
 - `src/store/tripStore.js`
   - 新增 `tripType` 預設值
 - `src/pages/Hotels.jsx`
   - 修正 trip dropdown z-index / overlay bug
+
+### 12.6 Booking Import 技術方向
+
+下一個優先功能是 Flights 訂單文字導入。
+
+建議初版採本機解析，不使用付費 OCR / AI API：
+
+- 使用 textarea paste 訂單或 email 文字。
+- 使用規則式 parser 擷取常見欄位。
+- 優先支援英文 itinerary 常見格式。
+- 自動填欄後讓 user review。
+- 不直接自動儲存，避免 parser 誤判污染資料。
+
+後續再延伸：
+
+- 住宿訂房文字導入強化。
+- 若未來產品成熟並準備上架，再評估 OCR、email forwarding、或 AI parsing 的付費方案。

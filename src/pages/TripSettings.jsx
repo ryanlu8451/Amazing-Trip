@@ -10,10 +10,12 @@ import {
   Lock,
   Globe,
   Trash2,
+  Share2,
+  Copy,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
-import { canManageTripMembers, normalizeEmail } from '../lib/tripCloud'
+import { canManageTripMembers, normalizeEmail, saveTripToCloud } from '../lib/tripCloud'
 import { useTranslation } from '../lib/i18n'
 
 export default function TripSettings() {
@@ -38,6 +40,9 @@ export default function TripSettings() {
   const memberRoles = activeTrip?.memberRoles || {}
   const ownerEmail = normalizeEmail(activeTrip?.ownerEmail || user?.email)
   const tripType = activeTrip?.tripType || 'solo'
+  const inviteLink = activeTrip?.id
+    ? `${window.location.origin}/invite/${activeTrip.id}`
+    : window.location.origin
 
   const selectTripType = (nextTripType) => {
     if (activeTrip && tripType !== nextTripType) {
@@ -47,7 +52,41 @@ export default function TripSettings() {
     }
   }
 
-  const shareTrip = () => {
+  const copyInviteLink = async () => {
+    await navigator.clipboard?.writeText(inviteLink)
+    setMessage(t('tripSettings.linkCopied'))
+  }
+
+  const openNativeShare = async (invitedEmail) => {
+    const tripName = activeTrip?.name || t('common.untitledTrip')
+    const shareText = invitedEmail
+      ? t('tripSettings.shareText', {
+          tripName,
+          email: invitedEmail,
+        })
+      : t('tripSettings.shareTextGeneric', { tripName })
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: t('tripSettings.shareTitle', { tripName }),
+          text: shareText,
+          url: inviteLink,
+        })
+        setMessage(t('tripSettings.sharedWith', { email: invitedEmail }))
+        return
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          setMessage(t('tripSettings.shareCancelled'))
+          return
+        }
+      }
+    }
+
+    await copyInviteLink()
+  }
+
+  const shareTrip = async () => {
     const invitedEmail = normalizeEmail(email)
 
     if (!activeTrip || !invitedEmail) {
@@ -60,6 +99,11 @@ export default function TripSettings() {
       return
     }
 
+    const nextMemberRoles = {
+      ...memberRoles,
+      [ownerEmail]: 'owner',
+      [invitedEmail]: role,
+    }
     const nextMemberEmails = [
       ...new Set([
         ownerEmail,
@@ -68,26 +112,53 @@ export default function TripSettings() {
         invitedEmail,
       ].filter(Boolean)),
     ]
+    const updatedTrip = {
+      ...activeTrip,
+      tripType: 'group',
+      memberEmails: nextMemberEmails,
+      memberRoles: nextMemberRoles,
+    }
 
     updateTrip({
       tripType: 'group',
       memberEmails: nextMemberEmails,
-      memberRoles: {
-        ...memberRoles,
-        [ownerEmail]: 'owner',
-        [invitedEmail]: role,
-      },
+      memberRoles: nextMemberRoles,
+    })
+    saveTripToCloud(updatedTrip, user).catch(() => {
+      setMessage(t('tripSettings.shareSaveWarning'))
     })
 
     setEmail('')
     setRole('viewer')
-    setMessage(t('tripSettings.sharedWith', { email: invitedEmail }))
+    await openNativeShare(invitedEmail)
+  }
+
+  const updateMemberRole = (memberEmail, nextRole) => {
+    const normalizedMemberEmail = normalizeEmail(memberEmail)
+
+    if (!activeTrip || normalizedMemberEmail === ownerEmail || !userCanManageMembers) {
+      return
+    }
+
+    updateTrip({
+      memberRoles: {
+        ...memberRoles,
+        [ownerEmail]: 'owner',
+        [normalizedMemberEmail]: nextRole,
+      },
+    })
+
+    setMessage(t('tripSettings.roleUpdated', { email: normalizedMemberEmail }))
   }
 
   const removeMember = (memberEmail) => {
     const normalizedMemberEmail = normalizeEmail(memberEmail)
 
     if (!activeTrip || normalizedMemberEmail === ownerEmail || !userCanManageMembers) {
+      return
+    }
+
+    if (!window.confirm(t('tripSettings.removeConfirm', { email: normalizedMemberEmail }))) {
       return
     }
 
@@ -215,32 +286,49 @@ export default function TripSettings() {
                     return (
                       <div
                         key={normalizedMemberEmail}
-                        className="flex items-center justify-between rounded-xl bg-gray-50 p-3 gap-3"
+                        className="rounded-xl bg-gray-50 p-3"
                       >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">
-                            {normalizedMemberEmail}
-                          </p>
-                          <p className="text-xs text-gray-400 capitalize">
-                            {t(`common.${memberRole}`)}
-                          </p>
-                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {normalizedMemberEmail}
+                            </p>
+                            <p className="text-xs text-gray-400 capitalize">
+                              {isOwner ? t('tripSettings.ownerBadge') : t(`common.${memberRole}`)}
+                            </p>
+                          </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs bg-blue-100 text-blue-600 px-3 py-1 rounded-full capitalize">
-                            {t(`common.${memberRole}`)}
-                          </span>
-
-                          {!isOwner && userCanManageMembers && (
-                            <button
-                              type="button"
-                              onClick={() => removeMember(normalizedMemberEmail)}
-                              className="p-1 rounded-full hover:bg-red-50"
-                              aria-label={`Remove ${normalizedMemberEmail}`}
-                            >
-                              <Trash2 size={14} className="text-red-400" />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isOwner || !userCanManageMembers ? (
+                              <span className="text-xs bg-blue-100 text-blue-600 px-3 py-1 rounded-full capitalize">
+                                {t(`common.${memberRole}`)}
+                              </span>
+                            ) : (
+                              <select
+                                value={memberRole}
+                                onChange={(event) =>
+                                  updateMemberRole(normalizedMemberEmail, event.target.value)
+                                }
+                                className="max-w-[116px] border border-gray-200 rounded-full bg-white px-3 py-1 text-xs text-gray-600 focus:outline-none focus:border-blue-400"
+                                aria-label={t('tripSettings.changeRoleFor', {
+                                  email: normalizedMemberEmail,
+                                })}
+                              >
+                                <option value="viewer">{t('common.viewer')}</option>
+                                <option value="editor">{t('common.editor')}</option>
+                              </select>
+                            )}
+                            {!isOwner && userCanManageMembers && (
+                              <button
+                                type="button"
+                                onClick={() => removeMember(normalizedMemberEmail)}
+                                className="p-1 rounded-full hover:bg-red-50"
+                                aria-label={`Remove ${normalizedMemberEmail}`}
+                              >
+                                <Trash2 size={14} className="text-red-400" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
@@ -313,16 +401,29 @@ export default function TripSettings() {
                 {t('tripSettings.inviteLinkBody')}
               </p>
 
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(window.location.origin)
-                  setMessage(t('tripSettings.linkCopied'))
-                }}
-                className="w-full bg-purple-50 text-purple-600 rounded-xl py-3 font-semibold text-sm"
-              >
-                {t('tripSettings.copyLink')}
-              </button>
+              <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3">
+                <p className="break-all text-xs text-gray-500">{inviteLink}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => openNativeShare('')}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 py-3 text-sm font-semibold text-white"
+                >
+                  <Share2 size={16} />
+                  {t('tripSettings.shareLink')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={copyInviteLink}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-purple-50 py-3 text-sm font-semibold text-purple-600"
+                >
+                  <Copy size={16} />
+                  {t('tripSettings.copyLink')}
+                </button>
+              </div>
             </div>
           </>
         )}
