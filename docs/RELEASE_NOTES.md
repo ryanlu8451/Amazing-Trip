@@ -12,6 +12,8 @@ Test URL: https://amazing-trip-f5732.web.app
 - Fixed Google sign-in initialization when the deployed app is served from `amazing-trip-f5732.web.app`.
 - Normalized Firebase Auth config so Firebase Hosting production domains use the current serving domain, matching Firebase's redirect sign-in guidance for `web.app`.
 - Switched Google sign-in initiation to popup mode on all supported browsers to avoid mobile redirect failures caused by third-party storage restrictions.
+- Reverted Auth initialization to Firebase's official SDK config domain (`amazing-trip-f5732.firebaseapp.com`) for popup sign-in stability.
+- Added temporary QA diagnostics that surface the raw Firebase Auth error details in the login screen and console.
 - Updated the Content Security Policy to allow Firebase Auth iframe/connect traffic from both Firebase app and hosting domains.
 - Relaxed frame protection from `DENY` / `frame-ancestors 'none'` to same-origin framing so Firebase Auth's hidden helper iframe can initialize.
 - Added a clearer fallback message for `auth/internal-error` during Google sign-in.

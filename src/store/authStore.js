@@ -22,6 +22,17 @@ function toUserProfile(user) {
   }
 }
 
+function getAuthErrorDetail(error) {
+  const parts = [error.code, error.message].filter(Boolean)
+  const serverMessage = error.customData?._tokenResponse?.error?.message
+
+  if (serverMessage) {
+    parts.push(serverMessage)
+  }
+
+  return parts.join(' | ')
+}
+
 export const useAuthStore = create((set) => ({
   user: null,
   loading: true,
@@ -81,6 +92,12 @@ export const useAuthStore = create((set) => ({
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (error) {
+      console.error('[Google Sign-In Error]', {
+        code: error.code,
+        message: error.message,
+        customData: error.customData,
+      })
+
       if (error.code === 'auth/popup-closed-by-user') {
         set({ error: 'Sign-in was cancelled.' })
         return
@@ -95,12 +112,12 @@ export const useAuthStore = create((set) => ({
 
       if (error.code === 'auth/internal-error') {
         set({
-          error: 'Google sign-in could not start. Please refresh the page and try again in Safari or Chrome. If this continues, make sure amazing-trip-f5732.web.app is added in Firebase Authentication authorized domains.',
+          error: `Google sign-in could not start. ${getAuthErrorDetail(error)}`,
         })
         return
       }
 
-      set({ error: error.message || 'Google sign-in failed.' })
+      set({ error: getAuthErrorDetail(error) || 'Google sign-in failed.' })
     }
   },
 
