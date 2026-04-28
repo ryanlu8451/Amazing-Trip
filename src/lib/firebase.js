@@ -3,11 +3,18 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 function getAuthDomain(projectId, authDomain) {
-  if (!authDomain && projectId) {
-    return `${projectId}.firebaseapp.com`
+  const currentHostname =
+    typeof window === 'undefined' ? '' : window.location.hostname
+
+  if (
+    projectId &&
+    (currentHostname === `${projectId}.web.app` ||
+      currentHostname === `${projectId}.firebaseapp.com`)
+  ) {
+    return currentHostname
   }
 
-  if (authDomain?.endsWith('.web.app') && projectId) {
+  if (!authDomain && projectId) {
     return `${projectId}.firebaseapp.com`
   }
 

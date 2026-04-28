@@ -5,7 +5,6 @@ import {
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
 } from 'firebase/auth'
 import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase'
@@ -58,7 +57,7 @@ export const useAuthStore = create((set) => ({
 
       if (error.code === 'auth/internal-error') {
         set({
-          error: 'Google sign-in could not start. Refresh the page and open Amazing Trip in Safari or Chrome. If this continues, check the Firebase Authentication domain settings.',
+          error: 'Google sign-in could not start. Please refresh the page and try again in Safari or Chrome. If this continues, make sure amazing-trip-f5732.web.app is added in Firebase Authentication authorized domains.',
         })
         return
       }
@@ -105,11 +104,6 @@ export const useAuthStore = create((set) => ({
     set({ error: '' })
 
     try {
-      if (browser.isMobile) {
-        await signInWithRedirect(auth, googleProvider)
-        return
-      }
-
       await signInWithPopup(auth, googleProvider)
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user') {
@@ -126,7 +120,7 @@ export const useAuthStore = create((set) => ({
 
       if (error.code === 'auth/internal-error') {
         set({
-          error: 'Google sign-in could not start. Refresh the page and open Amazing Trip in Safari or Chrome. If this continues, check the Firebase Authentication domain settings.',
+          error: 'Google sign-in could not start. Please refresh the page and try again in Safari or Chrome. If this continues, make sure amazing-trip-f5732.web.app is added in Firebase Authentication authorized domains.',
         })
         return
       }
