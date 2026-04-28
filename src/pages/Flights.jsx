@@ -792,85 +792,151 @@ function getRouteValue(lines, keywords) {
   return matchedLine || ''
 }
 
-function parseFlightConfirmation(text, currentForm) {
+function detectAirline(text) {
+  const upperText = text.toUpperCase()
+
+  if (upperText.includes('WESTJET')) {
+    return 'westjet'
+  }
+
+  if (upperText.includes('UNITED AIRLINES') || /\bUA\b/.test(upperText)) {
+    return 'united'
+  }
+
+  if (upperText.includes('DELTA AIR') || /\bDL\b/.test(upperText)) {
+    return 'delta'
+  }
+
+  if (upperText.includes('AIR CANADA') || /\bAC\b/.test(upperText)) {
+    return 'aircanada'
+  }
+
+  if (upperText.includes('AMERICAN AIRLINES') || /\bAA\b/.test(upperText)) {
+    return 'american'
+  }
+
+  if (upperText.includes('BRITISH AIRWAYS') || /\bBA\b/.test(upperText)) {
+    return 'britishairways'
+  }
+
+  if (upperText.includes('LUFTHANSA') || /\bLH\b/.test(upperText)) {
+    return 'lufthansa'
+  }
+
+  if (upperText.includes('JAL') || upperText.includes('JAPAN AIRLINES') || /\bJL\b/.test(upperText)) {
+    return 'jal'
+  }
+
+  if (upperText.includes('ANA') || upperText.includes('ALL NIPPON') || /\bNH\b/.test(upperText)) {
+    return 'ana'
+  }
+
+  if (upperText.includes('SINGAPORE AIRLINES') || /\bSQ\b/.test(upperText)) {
+    return 'singaporeairlines'
+  }
+
+  return 'generic'
+}
+
+function parseUnifiedFlightConfirmation(text, currentForm) {
   const lines = text
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
   const normalizedText = lines.join('\n')
-  const westJetData = parseWestJetEticket(normalizedText, currentForm)
 
-  if (westJetData) {
-    const { amount, currency } = extractAmount(text)
-
-    return {
-      ...westJetData,
-      currency: amount ? currency : currentForm.currency,
-      price: amount || currentForm.price,
-    }
-  }
-
+  // Common patterns for most airlines
   const airline =
     getLineValue(lines, ['Airline', 'Operated by', 'Carrier', '航空公司']) ||
     currentForm.airline
+
   const code = extractFlightCode(normalizedText) || currentForm.code
-  const departureLine = getRouteValue(lines, [
-    'From',
-    'Departure airport',
-    'Departing from',
-    'Origin',
-    '出發',
-    '起飛',
-  ])
-  const arrivalLine = getRouteValue(lines, [
-    'To',
-    'Arrival airport',
-    'Arriving at',
-    'Destination',
-    '抵達',
-    '到達',
-  ])
-  const departureAirport = extractAirportCode(departureLine) || currentForm.fromAirport
-  const arrivalAirport =
-    extractAirportCode(arrivalLine.replace(departureAirport, '')) || currentForm.toAirport
-  const departureDate =
-    normalizeDateText(
-      getLineValue(lines, ['Departure date', 'Depart date', 'Departing', 'Date', '出發日期'])
-    ) ||
-    normalizeDateText(departureLine) ||
-    currentForm.date
-  const arrivalDate =
-    normalizeDateText(getLineValue(lines, ['Arrival date', 'Arrive date', 'Arriving', '抵達日期'])) ||
-    normalizeDateText(arrivalLine) ||
-    currentForm.arrDate
-  const departureTime =
-    normalizeTimeText(getLineValue(lines, ['Departure time', 'Depart time', 'Departs', '出發時間'])) ||
-    normalizeTimeText(departureLine) ||
-    currentForm.depTime
-  const arrivalTime =
-    normalizeTimeText(getLineValue(lines, ['Arrival time', 'Arrive time', 'Arrives', '抵達時間'])) ||
-    normalizeTimeText(arrivalLine) ||
-    currentForm.arrTime
+
+  // Try multiple patterns for confirmation/booking reference
   const bookingRef =
     getLineValue(lines, [
       'Booking reference',
       'Booking ref',
       'Confirmation number',
+      'Confirmation Code',
       'Reservation code',
       'Record locator',
       'PNR',
+      'Itinerary number',
       '訂位代號',
       '訂位編號',
+      '確認號碼',
     ]) || currentForm.bookingRef
-  const terminal =
-    getLineValue(lines, ['Terminal', '航廈']) ||
-    currentForm.terminal
-  const gate =
-    getLineValue(lines, ['Gate', '登機門']) ||
-    currentForm.gate
+
+  // Extract route information
+  const departureLine = getRouteValue(lines, [
+    'From',
+    'Departure airport',
+    'Departing from',
+    'Origin',
+    'Departure City',
+    '出發',
+    '起飛',
+  ])
+
+  const arrivalLine = getRouteValue(lines, [
+    'To',
+    'Arrival airport',
+    'Arriving at',
+    'Destination',
+    'Arrival City',
+    '抵達',
+    '到達',
+  ])
+
+  const departureAirport = extractAirportCode(departureLine) || currentForm.fromAirport
+  const arrivalAirport =
+    extractAirportCode(arrivalLine.replace(departureAirport, '')) || currentForm.toAirport
+
+  // Extract dates with multiple patterns
+  const departureDate =
+    normalizeDateText(
+      getLineValue(lines, [
+        'Departure date',
+        'Depart date',
+        'Departing',
+        'Flight Date',
+        'Date',
+        '出發日期',
+        '飛行日期',
+      ])
+    ) ||
+    normalizeDateText(departureLine) ||
+    currentForm.date
+
+  const arrivalDate =
+    normalizeDateText(getLineValue(lines, ['Arrival date', 'Arrive date', 'Arriving', '抵達日期'])) ||
+    normalizeDateText(arrivalLine) ||
+    currentForm.arrDate
+
+  // Extract times
+  const departureTime =
+    normalizeTimeText(
+      getLineValue(lines, ['Departure time', 'Depart time', 'Departs', 'Departure', '出發時間'])
+    ) ||
+    normalizeTimeText(departureLine) ||
+    currentForm.depTime
+
+  const arrivalTime =
+    normalizeTimeText(getLineValue(lines, ['Arrival time', 'Arrive time', 'Arrives', '抵達時間'])) ||
+    normalizeTimeText(arrivalLine) ||
+    currentForm.arrTime
+
+  // Extract terminal and gate
+  const terminal = getLineValue(lines, ['Terminal', 'Dep Terminal', '航廈']) || currentForm.terminal
+  const gate = getLineValue(lines, ['Gate', 'Dep Gate', '登機門']) || currentForm.gate
+
+  // Extract seat class/cabin
   const seat =
-    getLineValue(lines, ['Cabin', 'Class', 'Seat class', '艙等']) ||
+    getLineValue(lines, ['Cabin', 'Class', 'Seat class', 'Service Class', '艙等', '舱位']) ||
     currentForm.seat
+
+  // Extract price
   const { amount, currency } = extractAmount(text)
 
   return {
@@ -892,6 +958,33 @@ function parseFlightConfirmation(text, currentForm) {
     currency: amount ? currency : currentForm.currency,
     price: amount || currentForm.price,
   }
+}
+
+function parseFlightConfirmation(text, currentForm) {
+  const airline = detectAirline(text)
+
+  // WestJet has special parsing logic
+  if (airline === 'westjet') {
+    const lines = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const normalizedText = lines.join('\n')
+    const westJetData = parseWestJetEticket(normalizedText, currentForm)
+
+    if (westJetData) {
+      const { amount, currency } = extractAmount(text)
+
+      return {
+        ...westJetData,
+        currency: amount ? currency : currentForm.currency,
+        price: amount || currentForm.price,
+      }
+    }
+  }
+
+  // Use unified parser for all other airlines
+  return parseUnifiedFlightConfirmation(text, currentForm)
 }
 
 async function extractTextFromPdf(file) {

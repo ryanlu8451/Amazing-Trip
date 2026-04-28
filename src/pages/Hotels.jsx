@@ -709,40 +709,151 @@ function extractBookingReference(lines, currentBookingRef) {
   return cleanRef || currentBookingRef
 }
 
-function parseHotelConfirmation(text, currentForm) {
+function detectPlatform(text) {
+  const upperText = text.toUpperCase()
+
+  if (upperText.includes('AIRBNB')) {
+    return 'airbnb'
+  }
+
+  if (upperText.includes('AGODA')) {
+    return 'agoda'
+  }
+
+  if (upperText.includes('BOOKING.COM')) {
+    return 'booking'
+  }
+
+  return 'generic'
+}
+
+function parseAirbnbConfirmation(text, currentForm) {
   const lines = text
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
 
-  const name = extractHotelName(lines, currentForm.name)
-  const stayDates = extractStayDates(lines)
-  const checkIn = stayDates.checkIn || currentForm.checkIn
-  const checkOut = stayDates.checkOut || currentForm.checkOut
-  const bookingRef = extractBookingReference(lines, currentForm.bookingRef)
+  // Airbnb specific patterns
+  const reservationMatch = text.match(/Reservation\s+(?:ID|#|Number)[\s:]*([A-Z0-9]+)/i)
+  const bookingRef = reservationMatch?.[1] ||
+    getLineValue(lines, ['Reservation ID', 'Booking ID', 'Confirmation ID', '預約編號'], { maxNextLines: 1 }) ||
+    currentForm.bookingRef
 
+  // Airbnb typically lists the property name prominently
+  const name = extractHotelName(lines, currentForm.name) ||
+    getLineValue(lines, ['Property', 'Listing', '房源'], { maxNextLines: 1 }) ||
+    currentForm.name
+
+  // Extract dates from Airbnb format
+  const stayDates = extractStayDates(lines)
+  let checkIn = stayDates.checkIn || currentForm.checkIn
+  let checkOut = stayDates.checkOut || currentForm.checkOut
+
+  // Airbnb specific date patterns (e.g., "Check-in: January 15, 2025")
+  if (!checkIn || !checkOut) {
+    const checkInMatch = text.match(/Check[\s-]?in[\s:]*([^,\n]+)/i)
+    const checkOutMatch = text.match(/Check[\s-]?out[\s:]*([^,\n]+)/i)
+
+    if (checkInMatch) {
+      checkIn = normalizeDateText(checkInMatch[1]) || checkIn
+    }
+    if (checkOutMatch) {
+      checkOut = normalizeDateText(checkOutMatch[1]) || checkOut
+    }
+  }
+
+  // Airbnb usually lists guest count, not room count
+  const guestMatch = text.match(/(\d+)\s*(?:guest|person|traveller)/i)
+  const guests = guestMatch ? Number(guestMatch[1]) : currentForm.rooms
+
+  // Extract address from Airbnb
   const address =
-    getLineValue(lines, ['Hotel address', 'Property address', 'Address', '地址', '飯店地址', '酒店地址'], {
-      maxNextLines: 3,
+    getLineValue(lines, ['Address', 'Location', '地址', '位置'], {
+      maxNextLines: 2,
       maxValues: 2,
     }) ||
     currentForm.address
 
-  const phone =
-    getLineValue(lines, ['Phone', 'Telephone', 'Hotel phone', 'Contact number', '電話', '聯絡電話'], {
-      maxNextLines: 2,
-    }) ||
-    currentForm.phone
+  // Extract price
+  const priceMatch = text.match(/Total\s*(?:price|amount|cost)[\s:]*([A-Z]{3})\s*([0-9,]+(?:\.\d{2})?)/i)
+  let amount
+  let currency
 
+  if (priceMatch) {
+    currency = priceMatch[1]
+    amount = Number(priceMatch[2].replace(/,/g, ''))
+  } else {
+    const { amount: extractedAmount, currency: extractedCurrency } = extractAmount(text)
+    amount = extractedAmount
+    currency = extractedCurrency || currentForm.currency
+  }
+
+  const nights = getNights({ checkIn, checkOut })
+  const calculatedPricePerNight = amount && nights > 0 ? amount / nights : currentForm.pricePerNight
+
+  return {
+    name,
+    checkIn,
+    checkOut,
+    rooms: guests > 0 ? guests : currentForm.rooms,
+    roomCapacity: String(guests || currentForm.roomCapacity),
+    bookingRef,
+    address,
+    phone: currentForm.phone,
+    status: 'confirmed',
+    currency,
+    pricePerNight: calculatedPricePerNight ? Number(calculatedPricePerNight.toFixed(2)) : currentForm.pricePerNight,
+    totalCost: amount || currentForm.totalCost,
+  }
+}
+
+function parseAgodaConfirmation(text, currentForm) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  // Agoda specific patterns
+  const confirmMatch = text.match(/(?:Confirmation\s+Number|確認號碼?)[\s:]*([A-Z0-9-]+)/i)
+  const bookingRef = confirmMatch?.[1] ||
+    getLineValue(lines, ['Confirmation Number', 'Reference Number', 'Booking Reference', '確認號', '訂位編號'], { maxNextLines: 1 }) ||
+    currentForm.bookingRef
+
+  // Hotel name (usually clearly labeled in Agoda)
+  const name = extractHotelName(lines, currentForm.name) ||
+    getLineValue(lines, ['Hotel', 'Property', 'Accommodation', '酒店'], { maxNextLines: 1 }) ||
+    currentForm.name
+
+  // Extract dates
+  const stayDates = extractStayDates(lines)
+  const checkIn = stayDates.checkIn || currentForm.checkIn
+  const checkOut = stayDates.checkOut || currentForm.checkOut
+
+  // Extract room details
   const rooms = extractRoomCount(lines, currentForm.rooms)
   const roomCapacity = extractGuestCapacity(lines, currentForm.roomCapacity)
 
+  // Address information
+  const address =
+    getLineValue(lines, ['Address', 'Hotel address', '地址', '飯店地址'], {
+      maxNextLines: 2,
+      maxValues: 2,
+    }) ||
+    currentForm.address
+
+  // Phone number
+  const phone =
+    getLineValue(lines, ['Phone', 'Telephone', 'Tel', '電話'], {
+      maxNextLines: 1,
+    }) ||
+    currentForm.phone
+
+  // Price extraction - Agoda usually shows total
   const { amount, currency } = extractAmount(text)
   const nights = getNights({ checkIn, checkOut })
   const calculatedPricePerNight = amount && nights > 0 && rooms > 0 ? amount / nights / rooms : currentForm.pricePerNight
-  const mapUrl = extractMapUrl(text) || currentForm.mapUrl
 
-  const importedData = {
+  return {
     name,
     checkIn,
     checkOut,
@@ -751,15 +862,170 @@ function parseHotelConfirmation(text, currentForm) {
     bookingRef,
     address,
     phone,
-    mapUrl,
     status: 'confirmed',
     currency: amount ? currency : currentForm.currency,
     pricePerNight: calculatedPricePerNight ? Number(calculatedPricePerNight.toFixed(2)) : currentForm.pricePerNight,
     totalCost: amount || currentForm.totalCost,
   }
+}
 
-  if (!currentForm.area && address) {
-    importedData.area = address.split(',')[0]
+function parseBookingComConfirmation(text, currentForm) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  // Booking.com specific patterns
+  const bookingMatch = text.match(/(?:Booking\s+(?:Confirmation\s+)?Number|Booking\s+Reference)[\s:]*([A-Z0-9-]+)/i)
+  const bookingRef = bookingMatch?.[1] ||
+    getLineValue(lines, ['Booking Number', 'Confirmation Number', 'Booking Reference', '訂位編號'], { maxNextLines: 1 }) ||
+    currentForm.bookingRef
+
+  // Hotel name
+  const name = extractHotelName(lines, currentForm.name) ||
+    getLineValue(lines, ['Property name', 'Hotel', 'Accommodation', '飯店名稱'], { maxNextLines: 1 }) ||
+    currentForm.name
+
+  // Extract dates - Booking.com has clear check-in/check-out labels
+  const stayDates = extractStayDates(lines)
+  let checkIn = stayDates.checkIn || currentForm.checkIn
+  let checkOut = stayDates.checkOut || currentForm.checkOut
+
+  // Booking.com specific date patterns
+  if (!checkIn || !checkOut) {
+    const checkInMatch = text.match(/(?:Check-in|Check[\s-]?in)[\s:]*([^,\n]+)/i)
+    const checkOutMatch = text.match(/(?:Check-out|Check[\s-]?out)[\s:]*([^,\n]+)/i)
+
+    if (checkInMatch) {
+      checkIn = normalizeDateText(checkInMatch[1]) || checkIn
+    }
+    if (checkOutMatch) {
+      checkOut = normalizeDateText(checkOutMatch[1]) || checkOut
+    }
+  }
+
+  // Room and guest info
+  const rooms = extractRoomCount(lines, currentForm.rooms)
+  const roomCapacity = extractGuestCapacity(lines, currentForm.roomCapacity)
+
+  // Address
+  const address =
+    getLineValue(lines, ['Address', 'Property address', 'Street address', '地址'], {
+      maxNextLines: 2,
+      maxValues: 2,
+    }) ||
+    currentForm.address
+
+  // Phone
+  const phone =
+    getLineValue(lines, ['Phone', 'Telephone', 'Contact number', '電話'], {
+      maxNextLines: 1,
+    }) ||
+    currentForm.phone
+
+  // Price - Booking.com often shows "Total price", "Amount paid", etc.
+  const totalMatch = text.match(/(?:Total\s+(?:price|amount)|Amount\s+(?:to\s+)?pay)[\s:]*([A-Z]{3})\s*([0-9,]+(?:\.\d{2})?)/i)
+  let amount
+  let currency
+
+  if (totalMatch) {
+    currency = totalMatch[1]
+    amount = Number(totalMatch[2].replace(/,/g, ''))
+  } else {
+    const { amount: extractedAmount, currency: extractedCurrency } = extractAmount(text)
+    amount = extractedAmount
+    currency = extractedCurrency || currentForm.currency
+  }
+
+  const nights = getNights({ checkIn, checkOut })
+  const calculatedPricePerNight = amount && nights > 0 && rooms > 0 ? amount / nights / rooms : currentForm.pricePerNight
+
+  return {
+    name,
+    checkIn,
+    checkOut,
+    rooms,
+    roomCapacity,
+    bookingRef,
+    address,
+    phone,
+    status: 'confirmed',
+    currency,
+    pricePerNight: calculatedPricePerNight ? Number(calculatedPricePerNight.toFixed(2)) : currentForm.pricePerNight,
+    totalCost: amount || currentForm.totalCost,
+  }
+}
+
+function parseHotelConfirmation(text, currentForm) {
+  const platform = detectPlatform(text)
+
+  let importedData
+
+  switch (platform) {
+    case 'airbnb':
+      importedData = parseAirbnbConfirmation(text, currentForm)
+      break
+    case 'agoda':
+      importedData = parseAgodaConfirmation(text, currentForm)
+      break
+    case 'booking':
+      importedData = parseBookingComConfirmation(text, currentForm)
+      break
+    default: {
+      // Generic parsing fallback
+      const lines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+
+      const name = extractHotelName(lines, currentForm.name)
+      const stayDates = extractStayDates(lines)
+      const checkIn = stayDates.checkIn || currentForm.checkIn
+      const checkOut = stayDates.checkOut || currentForm.checkOut
+      const bookingRef = extractBookingReference(lines, currentForm.bookingRef)
+
+      const address =
+        getLineValue(lines, ['Hotel address', 'Property address', 'Address', '地址', '飯店地址', '酒店地址'], {
+          maxNextLines: 3,
+          maxValues: 2,
+        }) ||
+        currentForm.address
+
+      const phone =
+        getLineValue(lines, ['Phone', 'Telephone', 'Hotel phone', 'Contact number', '電話', '聯絡電話'], {
+          maxNextLines: 2,
+        }) ||
+        currentForm.phone
+
+      const rooms = extractRoomCount(lines, currentForm.rooms)
+      const roomCapacity = extractGuestCapacity(lines, currentForm.roomCapacity)
+
+      const { amount, currency } = extractAmount(text)
+      const nights = getNights({ checkIn, checkOut })
+      const calculatedPricePerNight = amount && nights > 0 && rooms > 0 ? amount / nights / rooms : currentForm.pricePerNight
+      const mapUrl = extractMapUrl(text) || currentForm.mapUrl
+
+      importedData = {
+        name,
+        checkIn,
+        checkOut,
+        rooms,
+        roomCapacity,
+        bookingRef,
+        address,
+        phone,
+        mapUrl,
+        status: 'confirmed',
+        currency: amount ? currency : currentForm.currency,
+        pricePerNight: calculatedPricePerNight ? Number(calculatedPricePerNight.toFixed(2)) : currentForm.pricePerNight,
+        totalCost: amount || currentForm.totalCost,
+      }
+      break
+    }
+  }
+
+  if (!currentForm.area && importedData.address) {
+    importedData.area = importedData.address.split(',')[0]
   }
 
   return importedData
