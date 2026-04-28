@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import {
   browserLocalPersistence,
-  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
@@ -41,30 +40,6 @@ export const useAuthStore = create((set) => ({
 
     setPersistence(auth, browserLocalPersistence).catch(() => {
       set({ error: 'Could not enable persistent sign-in for this browser.' })
-    })
-
-    getRedirectResult(auth).catch((error) => {
-      if (error.code === 'auth/no-auth-event') {
-        return
-      }
-
-      if (error.code === 'auth/unauthorized-domain') {
-        set({
-          error: 'This domain is not authorized in Firebase Authentication.',
-        })
-        return
-      }
-
-      if (error.code === 'auth/internal-error') {
-        set({
-          error: 'Google sign-in could not start. Please refresh the page and try again in Safari or Chrome. If this continues, make sure amazing-trip-f5732.web.app is added in Firebase Authentication authorized domains.',
-        })
-        return
-      }
-
-      set({
-        error: error.message || 'Could not finish Google sign-in.',
-      })
     })
 
     return onAuthStateChanged(
