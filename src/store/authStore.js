@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import {
   browserLocalPersistence,
+  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from 'firebase/auth'
 import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase'
@@ -33,6 +35,33 @@ function getAuthErrorDetail(error) {
   return parts.join(' | ')
 }
 
+const AUTH_REDIRECT_PENDING_KEY = 'amazing-trip:authRedirectPending'
+
+function setRedirectPending(isPending) {
+  try {
+    if (isPending) {
+      window.sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'true')
+      return
+    }
+
+    window.sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY)
+  } catch {
+    // Some private browsing modes can block sessionStorage. Auth still works without this marker.
+  }
+}
+
+function hasRedirectPending() {
+  try {
+    return window.sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function shouldFallbackToRedirect(error) {
+  return ['auth/internal-error', 'auth/popup-blocked', 'auth/cancelled-popup-request'].includes(error.code)
+}
+
 export const useAuthStore = create((set) => ({
   user: null,
   loading: true,
@@ -52,6 +81,26 @@ export const useAuthStore = create((set) => ({
     setPersistence(auth, browserLocalPersistence).catch(() => {
       set({ error: 'Could not enable persistent sign-in for this browser.' })
     })
+
+    if (hasRedirectPending()) {
+      getRedirectResult(auth)
+        .catch((error) => {
+          console.error('[Google Redirect Sign-In Error]', {
+            code: error.code,
+            message: error.message,
+            customData: error.customData,
+          })
+
+          set({
+            user: null,
+            loading: false,
+            error: `Google sign-in could not finish. ${getAuthErrorDetail(error)}`,
+          })
+        })
+        .finally(() => {
+          setRedirectPending(false)
+        })
+    }
 
     return onAuthStateChanged(
       auth,
@@ -108,6 +157,28 @@ export const useAuthStore = create((set) => ({
           error: 'This domain is not authorized in Firebase Authentication.',
         })
         return
+      }
+
+      if (shouldFallbackToRedirect(error)) {
+        try {
+          set({ loading: true, error: '' })
+          setRedirectPending(true)
+          await signInWithRedirect(auth, googleProvider)
+          return
+        } catch (redirectError) {
+          setRedirectPending(false)
+          console.error('[Google Redirect Start Error]', {
+            code: redirectError.code,
+            message: redirectError.message,
+            customData: redirectError.customData,
+          })
+
+          set({
+            loading: false,
+            error: `Google sign-in could not start. ${getAuthErrorDetail(redirectError)}`,
+          })
+          return
+        }
       }
 
       if (error.code === 'auth/internal-error') {

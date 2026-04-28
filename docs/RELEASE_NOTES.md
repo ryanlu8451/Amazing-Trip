@@ -16,6 +16,8 @@ Test URL: https://amazing-trip-f5732.web.app
 - Added temporary QA diagnostics that surface the raw Firebase Auth error details in the login screen and console.
 - Updated the Content Security Policy to allow Firebase Auth iframe/connect traffic from both Firebase app and hosting domains.
 - Added Google Auth popup helper sources to the Content Security Policy, including `apis.google.com`, `accounts.google.com`, and `www.gstatic.com`.
+- Expanded Google Auth helper CSP sources to include Google API, Google, and gstatic wildcard subdomains used by popup/redirect flows.
+- Added a redirect fallback when the Google popup helper cannot start, so supported browsers can continue sign-in through a full-page Firebase redirect flow instead of stopping at `auth/internal-error`.
 - Relaxed frame protection from `DENY` / `frame-ancestors 'none'` to same-origin framing so Firebase Auth's hidden helper iframe can initialize.
 - Added a clearer fallback message for `auth/internal-error` during Google sign-in.
 - Bumped the service worker cache name so installed PWAs pick up the auth fix cleanly.
