@@ -6,6 +6,7 @@ function getAuthDomain(projectId, authDomain) {
   const currentHostname =
     typeof window === 'undefined' ? '' : window.location.hostname
 
+  // 如果在 Firebase Hosting 上，使用當前主機名
   if (
     projectId &&
     (currentHostname === `${projectId}.web.app` ||
@@ -14,6 +15,14 @@ function getAuthDomain(projectId, authDomain) {
     return currentHostname
   }
 
+  // 本地開發環境
+  if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+    if (projectId) {
+      return `${projectId}.firebaseapp.com`
+    }
+  }
+
+  // 使用環境變數中的 authDomain，或回退到預設值
   if (!authDomain && projectId) {
     return `${projectId}.firebaseapp.com`
   }
@@ -33,6 +42,15 @@ firebaseConfig.authDomain = getAuthDomain(
   firebaseConfig.projectId,
   import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
 )
+
+// 診斷信息（開發模式）
+if (import.meta.env.DEV) {
+  console.log('[Firebase Config Debug]', {
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain,
+    currentHostname: typeof window === 'undefined' ? 'N/A' : window.location.hostname,
+  })
+}
 
 export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean)
 
