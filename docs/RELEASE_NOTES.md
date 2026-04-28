@@ -7,6 +7,13 @@
 Release date: 2026-04-28  
 Test URL: https://amazing-trip-f5732.web.app
 
+### QA Hotfix - Firebase Auth Domain
+
+- Fixed Google sign-in initialization when the deployed app is served from `amazing-trip-f5732.web.app`.
+- Normalized Firebase Auth config so a `.web.app` hosting domain is converted to the required `.firebaseapp.com` auth domain.
+- Updated the Content Security Policy to allow Firebase Auth iframe/connect traffic from both Firebase app and hosting domains.
+- Added a clearer fallback message for `auth/internal-error` during Google sign-in.
+
 ### Release Goal
 
 此版本作為 Amazing Trip 第一個完整 QA 測試版本。產品目標是達到 app-like PWA 測試品質，但本階段不實際提交 App Store / Google Play。

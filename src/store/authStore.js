@@ -56,6 +56,13 @@ export const useAuthStore = create((set) => ({
         return
       }
 
+      if (error.code === 'auth/internal-error') {
+        set({
+          error: 'Google sign-in could not start. Refresh the page and open Amazing Trip in Safari or Chrome. If this continues, check the Firebase Authentication domain settings.',
+        })
+        return
+      }
+
       set({
         error: error.message || 'Could not finish Google sign-in.',
       })
@@ -113,6 +120,13 @@ export const useAuthStore = create((set) => ({
       if (error.code === 'auth/unauthorized-domain') {
         set({
           error: 'This domain is not authorized in Firebase Authentication.',
+        })
+        return
+      }
+
+      if (error.code === 'auth/internal-error') {
+        set({
+          error: 'Google sign-in could not start. Refresh the page and open Amazing Trip in Safari or Chrome. If this continues, check the Firebase Authentication domain settings.',
         })
         return
       }
