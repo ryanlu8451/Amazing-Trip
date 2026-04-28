@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amazing-trip-v1'
+const CACHE_NAME = 'amazing-trip-v3'
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -46,6 +46,13 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
+      if (
+        request.url.includes('/assets/') ||
+        request.url.includes('/pdfjs/')
+      ) {
+        return fetch(request).catch(() => cachedResponse)
+      }
+
       if (cachedResponse) {
         return cachedResponse
       }

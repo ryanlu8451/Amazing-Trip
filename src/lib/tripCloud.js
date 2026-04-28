@@ -11,6 +11,7 @@ import {
 import { db } from './firebase'
 
 const tripsCollection = db ? collection(db, 'trips') : null
+const VALID_MEMBER_ROLES = new Set(['owner', 'editor', 'viewer'])
 
 export function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
@@ -28,11 +29,14 @@ export function normalizeTripForCloud(trip, user) {
       ...existingEmails.map(normalizeEmail),
     ].filter(Boolean)),
   ]
-  const memberRoles = {
-    ...(trip.memberRoles || {}),
-  }
+  const sourceMemberRoles = trip.memberRoles || {}
+  const memberRoles = memberEmails.reduce((roles, email) => {
+    const role = sourceMemberRoles[email]
+    roles[email] = VALID_MEMBER_ROLES.has(role) ? role : 'viewer'
+    return roles
+  }, {})
 
-  if (ownerEmail && !memberRoles[ownerEmail]) {
+  if (ownerEmail) {
     memberRoles[ownerEmail] = 'owner'
   }
 
@@ -46,6 +50,19 @@ export function normalizeTripForCloud(trip, user) {
     ownerEmail,
     memberEmails,
     memberRoles,
+    tripType: trip.tripType || 'solo',
+    status: trip.status || 'planning',
+    isHidden: Boolean(trip.isHidden),
+    tips: trip.tips || {
+      emergency: [],
+      docs: [],
+      notes: '',
+    },
+    flights: Array.isArray(trip.flights) ? trip.flights : [],
+    hotels: Array.isArray(trip.hotels) ? trip.hotels : [],
+    budget: Array.isArray(trip.budget) ? trip.budget : [],
+    timeline: Array.isArray(trip.timeline) ? trip.timeline : [],
+    members: Array.isArray(trip.members) ? trip.members : [],
     updatedAt: Date.now(),
   }
 }

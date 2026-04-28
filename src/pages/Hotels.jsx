@@ -13,6 +13,7 @@ import {
   Phone,
   Plus,
   Trash2,
+  Upload,
   Users,
   Wifi,
 } from 'lucide-react'
@@ -64,6 +65,10 @@ const CURRENCY_OPTIONS = [
   { value: 'JPY', label: 'JPY' },
   { value: 'EUR', label: 'EUR' },
 ]
+
+const PDFJS_SCRIPT_URL = '/pdfjs/pdf.min.js?v=20260428c'
+const PDFJS_WORKER_URL = '/pdfjs/pdf.worker.min.js?v=20260428c'
+let pdfJsLoadPromise = null
 
 function getNights(hotel) {
   if (!hotel.checkIn || !hotel.checkOut) {
@@ -186,28 +191,177 @@ function getTripHotelTotal(trip) {
   return (trip.hotels || []).reduce((sum, hotel) => sum + getHotelTotal(hotel), 0)
 }
 
-function getLineValue(lines, keywords) {
-  const matchedLine = lines.find((line) =>
-    keywords.some((keyword) => line.toLowerCase().includes(keyword.toLowerCase()))
-  )
+function getReadableError(error) {
+  return [error?.name, error?.message].filter(Boolean).join(': ') || String(error || 'Unknown error')
+}
 
-  if (!matchedLine) {
+function configurePdfJsWorker(pdfjsLib) {
+  if (pdfjsLib?.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL
+  }
+
+  return pdfjsLib
+}
+
+function loadPdfJs() {
+  if (window.pdfjsLib) {
+    return Promise.resolve(configurePdfJsWorker(window.pdfjsLib))
+  }
+
+  if (pdfJsLoadPromise) {
+    return pdfJsLoadPromise
+  }
+
+  pdfJsLoadPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector(`script[src="${PDFJS_SCRIPT_URL}"]`)
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(configurePdfJsWorker(window.pdfjsLib)))
+      existingScript.addEventListener('error', () => reject(new Error('PDF.js script failed to load.')))
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = PDFJS_SCRIPT_URL
+    script.async = true
+    script.onload = () => {
+      if (window.pdfjsLib) {
+        resolve(configurePdfJsWorker(window.pdfjsLib))
+        return
+      }
+
+      reject(new Error('PDF.js loaded without browser API.'))
+    }
+    script.onerror = () => reject(new Error('PDF.js script failed to load.'))
+    document.head.append(script)
+  })
+
+  return pdfJsLoadPromise
+}
+
+const MONTH_INDEX = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+}
+
+const FIELD_LABEL_PATTERN =
+  /^(hotel|property|accommodation|check|arrival|departure|booking|confirmation|reservation|address|phone|telephone|rooms?|guests?|adults?|total|amount|price|payment|paid|飯店|酒店|住宿|旅宿|入住|退房|訂單|預訂|確認|地址|電話|房間|客房|住客|成人|總計|合計|付款|金額)/i
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function cleanFieldValue(value) {
+  return String(value || '')
+    .replace(/^[\s:：#\-–—]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getLineValue(lines, keywords, options = {}) {
+  const maxNextLines = options.maxNextLines ?? 2
+  const blockedPattern = options.blockedPattern || null
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    const matchedKeyword = keywords.find((keyword) =>
+      line.toLowerCase().includes(keyword.toLowerCase())
+    )
+
+    if (!matchedKeyword) {
+      continue
+    }
+
+    const inlineMatch = line.match(
+      new RegExp(`${escapeRegex(matchedKeyword)}\\s*[:：#\\-–—]\\s*(.+)$`, 'i')
+    )
+    const valueFromLine = cleanFieldValue(
+      inlineMatch?.[1] || line.replace(new RegExp(escapeRegex(matchedKeyword), 'ig'), '')
+    )
+
+    if (
+      valueFromLine &&
+      valueFromLine.toLowerCase() !== line.toLowerCase() &&
+      !blockedPattern?.test(valueFromLine)
+    ) {
+      return valueFromLine
+    }
+
+    const nextValues = []
+
+    for (let offset = 1; offset <= maxNextLines; offset += 1) {
+      const nextLine = lines[index + offset]
+
+      if (!nextLine) {
+        break
+      }
+
+      if (blockedPattern?.test(nextLine)) {
+        continue
+      }
+
+      if (FIELD_LABEL_PATTERN.test(nextLine) && nextValues.length > 0) {
+        break
+      }
+
+      if (!FIELD_LABEL_PATTERN.test(nextLine) || options.allowLabelLikeValue) {
+        nextValues.push(nextLine)
+      }
+
+      if (nextValues.length >= (options.maxValues || 1)) {
+        break
+      }
+    }
+
+    if (nextValues.length > 0) {
+      return cleanFieldValue(nextValues.join(' '))
+    }
+  }
+
+  return ''
+}
+
+function toIsoDate(year, month, day) {
+  const fullYear = Number(year) < 100 ? Number(year) + 2000 : Number(year)
+  const normalizedMonth = Number(month)
+  const normalizedDay = Number(day)
+  const date = new Date(fullYear, normalizedMonth - 1, normalizedDay)
+
+  if (
+    date.getFullYear() !== fullYear ||
+    date.getMonth() !== normalizedMonth - 1 ||
+    date.getDate() !== normalizedDay
+  ) {
     return ''
   }
 
-  const parts = matchedLine.split(/[:：]/)
-
-  if (parts.length > 1) {
-    return parts.slice(1).join(':').trim()
-  }
-
-  let cleanedLine = matchedLine
-
-  keywords.forEach((keyword) => {
-    cleanedLine = cleanedLine.replace(new RegExp(keyword, 'ig'), '')
-  })
-
-  return cleanedLine.replace(/^[-–—\s]+/, '').trim()
+  return [
+    String(fullYear).padStart(4, '0'),
+    String(normalizedMonth).padStart(2, '0'),
+    String(normalizedDay).padStart(2, '0'),
+  ].join('-')
 }
 
 function normalizeDateText(value) {
@@ -215,24 +369,58 @@ function normalizeDateText(value) {
     return ''
   }
 
-  const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/)
+  const normalizedValue = String(value)
+    .replace(/[（(].*?[）)]/g, ' ')
+    .replace(/星期[一二三四五六日天]|週[一二三四五六日天]/g, ' ')
+    .replace(/\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b,?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const isoMatch = normalizedValue.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
 
   if (isoMatch) {
-    return isoMatch[0]
+    return toIsoDate(isoMatch[1], isoMatch[2], isoMatch[3])
   }
 
-  const dateLikeMatch = value.match(
-    /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?[,]?\s*(?:\d{1,2}\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/i
+  const chineseMatch = normalizedValue.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/)
+
+  if (chineseMatch) {
+    return toIsoDate(chineseMatch[1], chineseMatch[2], chineseMatch[3])
+  }
+
+  const yearFirstMatch = normalizedValue.match(/\b(\d{4})[/.](\d{1,2})[/.](\d{1,2})\b/)
+
+  if (yearFirstMatch) {
+    return toIsoDate(yearFirstMatch[1], yearFirstMatch[2], yearFirstMatch[3])
+  }
+
+  const monthNamePattern = Object.keys(MONTH_INDEX).join('|')
+  const monthFirstMatch = normalizedValue.match(
+    new RegExp(`\\b(${monthNamePattern})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?[,]?\\s+(\\d{2,4})\\b`, 'i')
   )
 
-  const rawDate = dateLikeMatch ? dateLikeMatch[0].replace(/^[A-Za-z]{3},\s*/, '') : value
-  const parsedDate = new Date(rawDate)
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return ''
+  if (monthFirstMatch) {
+    return toIsoDate(monthFirstMatch[3], MONTH_INDEX[monthFirstMatch[1].toLowerCase()], monthFirstMatch[2])
   }
 
-  return parsedDate.toISOString().split('T')[0]
+  const dayFirstMatch = normalizedValue.match(
+    new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthNamePattern})\\.?[,]?\\s+(\\d{2,4})\\b`, 'i')
+  )
+
+  if (dayFirstMatch) {
+    return toIsoDate(dayFirstMatch[3], MONTH_INDEX[dayFirstMatch[2].toLowerCase()], dayFirstMatch[1])
+  }
+
+  const numericMatch = normalizedValue.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})\b/)
+
+  if (numericMatch) {
+    const first = Number(numericMatch[1])
+    const second = Number(numericMatch[2])
+    const month = first > 12 ? second : first
+    const day = first > 12 ? first : second
+    return toIsoDate(numericMatch[3], month, day)
+  }
+
+  return ''
 }
 
 function normalizeCurrency(value) {
@@ -265,32 +453,73 @@ function normalizeCurrency(value) {
   return 'CAD'
 }
 
+function getMoneyMatches(line) {
+  return [...line.matchAll(
+    /(CAD|CA\$|USD|US\$|TWD|NTD|NT\$|JPY|¥|EUR|€|\$)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(CAD|USD|TWD|NTD|JPY|EUR|日圓|台幣|新台幣)/gi
+  )]
+}
+
+function scoreMoneyLine(line) {
+  let score = 0
+
+  if (/grand total|total price|booking total|total amount|amount paid|total paid|總計|合計|總額|付款金額|已付款|實付|房價總額|住宿總價/i.test(line)) {
+    score += 12
+  }
+
+  if (/total|amount|price|payment|paid|charge|住宿費|房費|金額|付款/i.test(line)) {
+    score += 6
+  }
+
+  if (/tax|fee|deposit|discount|coupon|credit|saving|refund|per night|nightly|稅|服務費|押金|折扣|優惠|退款|每晚/i.test(line)) {
+    score -= 8
+  }
+
+  return score
+}
+
 function extractAmount(text) {
-  const importantLines = text
+  const lines = text
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) =>
-      /total|amount|price|paid|payment|charge|住宿費|總計|合計|付款/i.test(line)
-    )
+    .filter(Boolean)
+  const candidates = lines.flatMap((line, index) => {
+    const context = [lines[index - 1], line, lines[index + 1]].filter(Boolean).join(' ')
+    const score = scoreMoneyLine(context)
 
-  const searchText = importantLines.length > 0 ? importantLines.join('\n') : text
-  const moneyMatch = searchText.match(
-    /(CAD|CA\$|USD|US\$|TWD|NTD|NT\$|JPY|¥|EUR|€|\$)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(CAD|USD|TWD|NTD|JPY|EUR)/i
-  )
+    return getMoneyMatches(line).map((match) => {
+      const amount = Number((match[2] || match[3] || '').replace(/,/g, ''))
 
-  if (!moneyMatch) {
+      return {
+        amount,
+        currency: normalizeCurrency(match[1] || match[4] || line),
+        score,
+        index,
+      }
+    })
+  }).filter((candidate) => candidate.amount > 0)
+
+  if (candidates.length === 0) {
     return {
       amount: '',
       currency: 'CAD',
     }
   }
 
-  const currency = normalizeCurrency(moneyMatch[1] || moneyMatch[4] || '')
-  const amount = Number((moneyMatch[2] || moneyMatch[3] || '').replace(/,/g, ''))
+  const bestCandidate = candidates.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score
+    }
+
+    if (b.amount !== a.amount) {
+      return b.amount - a.amount
+    }
+
+    return a.index - b.index
+  })[0]
 
   return {
-    amount: Number.isNaN(amount) ? '' : amount,
-    currency,
+    amount: Number.isNaN(bestCandidate.amount) ? '' : bestCandidate.amount,
+    currency: bestCandidate.currency,
   }
 }
 
@@ -304,60 +533,209 @@ function extractMapUrl(text) {
   return mapMatch[0].replace(/[),.]+$/, '')
 }
 
+function extractDateCandidates(value) {
+  const source = String(value || '')
+  const candidates = [
+    ...source.matchAll(/\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日?/g),
+    ...source.matchAll(/\b\d{4}[/. -]\d{1,2}[/. -]\d{1,2}\b/g),
+    ...source.matchAll(/\b(?:Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\.?\s+\d{1,2}(?:st|nd|rd|th)?[,]?\s+\d{2,4}\b/gi),
+    ...source.matchAll(/\b\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\.?[,]?\s+\d{2,4}\b/gi),
+    ...source.matchAll(/\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b/g),
+  ]
+
+  return [...new Set(candidates.map((match) => normalizeDateText(match[0])).filter(Boolean))]
+}
+
+function getDateFromField(lines, keywords) {
+  const fieldValue = getLineValue(lines, keywords, { maxNextLines: 3, allowLabelLikeValue: true })
+  const fieldDates = extractDateCandidates(fieldValue)
+
+  if (fieldDates.length > 0) {
+    return fieldDates[0]
+  }
+
+  return normalizeDateText(fieldValue)
+}
+
+function extractStayDates(lines) {
+  let checkIn = getDateFromField(lines, [
+    'Check-in date',
+    'Check in date',
+    'Check-in',
+    'Check in',
+    'Arrival date',
+    'Arrival',
+    '入住日期',
+    '入住時間',
+    '入住',
+  ])
+  let checkOut = getDateFromField(lines, [
+    'Check-out date',
+    'Check out date',
+    'Check-out',
+    'Check out',
+    'Departure date',
+    'Departure',
+    '退房日期',
+    '退房時間',
+    '退房',
+  ])
+
+  if (checkIn && checkOut) {
+    return { checkIn, checkOut }
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const context = [lines[index], lines[index + 1], lines[index + 2]].filter(Boolean).join(' ')
+
+    if (!checkIn && /check.?in|arrival|入住/i.test(context)) {
+      checkIn = extractDateCandidates(context)[0] || checkIn
+    }
+
+    if (!checkOut && /check.?out|departure|退房/i.test(context)) {
+      checkOut = extractDateCandidates(context)[0] || checkOut
+    }
+
+    if ((!checkIn || !checkOut) && /stay dates|dates of stay|住宿期間|入住.*退房|check.?in.*check.?out/i.test(context)) {
+      const dateCandidates = extractDateCandidates(context)
+
+      if (dateCandidates.length >= 2) {
+        checkIn = checkIn || dateCandidates[0]
+        checkOut = checkOut || dateCandidates[1]
+      }
+    }
+  }
+
+  return { checkIn, checkOut }
+}
+
+function extractHotelName(lines, currentName) {
+  const specificName = getLineValue(lines, [
+    'Hotel name',
+    'Property name',
+    'Accommodation name',
+    'Name of accommodation',
+    'Stay name',
+    '住宿名稱',
+    '飯店名稱',
+    '酒店名稱',
+    '旅宿名稱',
+    '住宿設施名稱',
+  ], {
+    maxNextLines: 2,
+    blockedPattern: /address|phone|booking|confirmation|check|入住|退房|地址|電話|訂單|確認/i,
+  })
+
+  if (specificName) {
+    return specificName
+  }
+
+  const bookingTitle = lines.find((line) =>
+    /your booking at|booking confirmed at|reservation at|您在|你的.*訂房|預訂成功/i.test(line)
+  )
+  const titleMatch = bookingTitle?.match(/(?:your booking at|booking confirmed at|reservation at)\s+(.+)$/i)
+
+  return cleanFieldValue(titleMatch?.[1]) || currentName
+}
+
+function extractIntegerFromText(value) {
+  const match = String(value || '').match(/\d+/)
+  return match ? Number(match[0]) : ''
+}
+
+function extractRoomCount(lines, currentRooms) {
+  const roomsText = getLineValue(lines, [
+    'Number of rooms',
+    'Rooms',
+    'Room(s)',
+    '客房數量',
+    '房間數',
+    '客房',
+    '房間',
+  ])
+  const rooms = extractIntegerFromText(roomsText)
+
+  if (rooms) {
+    return rooms
+  }
+
+  const roomLine = lines.find((line) => /\b\d+\s*rooms?\b|\d+\s*(?:間客房|間房|房間)/i.test(line))
+  return extractIntegerFromText(roomLine) || currentRooms
+}
+
+function extractGuestCapacity(lines, currentCapacity) {
+  const guestText = getLineValue(lines, [
+    'Number of guests',
+    'Guests',
+    'Adults',
+    '入住人數',
+    '住客人數',
+    '住客',
+    '成人',
+  ])
+  const guests = extractIntegerFromText(guestText)
+
+  if (guests) {
+    return String(Math.min(Math.max(guests, 1), 6))
+  }
+
+  const guestLine = lines.find((line) => /\b\d+\s*(?:adults?|guests?)\b|\d+\s*(?:位成人|位住客|人入住)/i.test(line))
+  const guestCount = extractIntegerFromText(guestLine)
+  return guestCount ? String(Math.min(Math.max(guestCount, 1), 6)) : currentCapacity
+}
+
+function extractBookingReference(lines, currentBookingRef) {
+  const fieldValue = getLineValue(lines, [
+    'Booking ID',
+    'Booking number',
+    'Booking reference',
+    'Confirmation number',
+    'Confirmation code',
+    'Reservation number',
+    'Reservation code',
+    'Itinerary number',
+    '訂單編號',
+    '訂房編號',
+    '預訂編號',
+    '預約編號',
+    '確認號碼',
+    '確認編號',
+  ], {
+    maxNextLines: 1,
+    blockedPattern: /pin|password|入住|退房|地址|電話/i,
+  })
+  const cleanRef = fieldValue.match(/[A-Z0-9][A-Z0-9-]{4,}/i)?.[0]
+
+  return cleanRef || currentBookingRef
+}
+
 function parseHotelConfirmation(text, currentForm) {
   const lines = text
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
 
-  const name =
-    getLineValue(lines, [
-      'Hotel name',
-      'Hotel',
-      'Property name',
-      'Property',
-      'Accommodation',
-      'Stay name',
-      '住宿名稱',
-      '飯店',
-      '酒店',
-    ]) || currentForm.name
-
-  const checkIn =
-    normalizeDateText(getLineValue(lines, ['Check-in', 'Check in', 'Arrival', '入住'])) ||
-    currentForm.checkIn
-
-  const checkOut =
-    normalizeDateText(getLineValue(lines, ['Check-out', 'Check out', 'Departure', '退房'])) ||
-    currentForm.checkOut
-
-  const bookingRef =
-    getLineValue(lines, [
-      'Booking ID',
-      'Booking number',
-      'Booking reference',
-      'Confirmation number',
-      'Reservation number',
-      '訂單編號',
-      '預訂編號',
-      '確認號碼',
-    ]) || currentForm.bookingRef
+  const name = extractHotelName(lines, currentForm.name)
+  const stayDates = extractStayDates(lines)
+  const checkIn = stayDates.checkIn || currentForm.checkIn
+  const checkOut = stayDates.checkOut || currentForm.checkOut
+  const bookingRef = extractBookingReference(lines, currentForm.bookingRef)
 
   const address =
-    getLineValue(lines, ['Address', 'Hotel address', 'Property address', '地址']) ||
+    getLineValue(lines, ['Hotel address', 'Property address', 'Address', '地址', '飯店地址', '酒店地址'], {
+      maxNextLines: 3,
+      maxValues: 2,
+    }) ||
     currentForm.address
 
   const phone =
-    getLineValue(lines, ['Phone', 'Telephone', 'Hotel phone', 'Contact number', '電話']) ||
+    getLineValue(lines, ['Phone', 'Telephone', 'Hotel phone', 'Contact number', '電話', '聯絡電話'], {
+      maxNextLines: 2,
+    }) ||
     currentForm.phone
 
-  const roomsText = getLineValue(lines, ['Rooms', 'Number of rooms', '房間數', '客房'])
-  const roomsMatch = roomsText.match(/\d+/)
-  const rooms = roomsMatch ? Number(roomsMatch[0]) : currentForm.rooms
-
-  const guestText = getLineValue(lines, ['Guests', 'Adults', '入住人數', '住客'])
-  const guestMatch = guestText.match(/\d+/)
-  const roomCapacity = guestMatch ? String(Math.min(Math.max(Number(guestMatch[0]), 1), 6)) : currentForm.roomCapacity
+  const rooms = extractRoomCount(lines, currentForm.rooms)
+  const roomCapacity = extractGuestCapacity(lines, currentForm.roomCapacity)
 
   const { amount, currency } = extractAmount(text)
   const nights = getNights({ checkIn, checkOut })
@@ -387,6 +765,57 @@ function parseHotelConfirmation(text, currentForm) {
   return importedData
 }
 
+async function extractTextFromPdf(file) {
+  const pdfjsLib = await loadPdfJs()
+  const fileData = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({
+    data: new Uint8Array(fileData),
+    isEvalSupported: false,
+    useSystemFonts: true,
+  }).promise
+
+  const pageTexts = []
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber)
+    const textContent = await page.getTextContent()
+    const rows = textContent.items.reduce((lineGroups, item) => {
+      const y = Math.round(item.transform[5])
+      const matchingLine = lineGroups.find((line) => Math.abs(line.y - y) <= 3)
+
+      if (matchingLine) {
+        matchingLine.items.push(item)
+        return lineGroups
+      }
+
+      lineGroups.push({
+        y,
+        items: [item],
+      })
+
+      return lineGroups
+    }, [])
+    const pageText = rows
+      .sort((a, b) => b.y - a.y)
+      .map((line) =>
+        line.items
+          .sort((a, b) => a.transform[4] - b.transform[4])
+          .map((item) => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      )
+      .filter(Boolean)
+      .join('\n')
+
+    if (pageText) {
+      pageTexts.push(pageText)
+    }
+  }
+
+  return pageTexts.join('\n')
+}
+
 export default function Hotels() {
   const {
     trips,
@@ -407,6 +836,8 @@ export default function Hotels() {
   const [showImportBox, setShowImportBox] = useState(false)
   const [importText, setImportText] = useState('')
   const [importMessage, setImportMessage] = useState('')
+  const [importFileName, setImportFileName] = useState('')
+  const [isImportingPdf, setIsImportingPdf] = useState(false)
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
   const userCanEdit = canEditTrip(selectedTrip, user)
@@ -422,6 +853,8 @@ export default function Hotels() {
     setShowImportBox(false)
     setImportText('')
     setImportMessage('')
+    setImportFileName('')
+    setIsImportingPdf(false)
   }
 
   const openAdd = () => {
@@ -500,19 +933,19 @@ export default function Hotels() {
     })
   }
 
-  const importConfirmation = () => {
+  const applyImportedHotelText = (text) => {
     if (!userCanEdit) {
       setImportMessage(t('common.noEditPermission'))
       return
     }
 
-    if (!importText.trim()) {
+    if (!text.trim()) {
       setImportMessage(t('hotels.pasteFirst'))
       return
     }
 
     setForm((currentForm) => {
-      const importedData = parseHotelConfirmation(importText, currentForm)
+      const importedData = parseHotelConfirmation(text, currentForm)
       const updatedForm = {
         ...currentForm,
         ...importedData,
@@ -524,6 +957,35 @@ export default function Hotels() {
     })
 
     setImportMessage(t('hotels.imported'))
+  }
+
+  const importConfirmation = () => {
+    applyImportedHotelText(importText)
+  }
+
+  const importPdfFile = async (file) => {
+    if (!file) {
+      return
+    }
+
+    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      setImportMessage(t('hotels.pdfOnly'))
+      return
+    }
+
+    setIsImportingPdf(true)
+    setImportFileName(file.name)
+    setImportMessage(t('hotels.readingPdf'))
+
+    try {
+      const pdfText = await extractTextFromPdf(file)
+      setImportText(pdfText)
+      applyImportedHotelText(pdfText)
+    } catch (error) {
+      setImportMessage(t('hotels.pdfReadFailedDetail', { error: getReadableError(error) }))
+    } finally {
+      setIsImportingPdf(false)
+    }
   }
 
   const save = () => {
@@ -1055,6 +1517,37 @@ export default function Hotels() {
 
             {showImportBox && (
               <div className="mt-4">
+                <label className="mb-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-purple-200 bg-white px-4 py-5 text-center active:bg-purple-50">
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-purple-50 text-purple-500">
+                    <Upload size={20} />
+                  </div>
+                  <p className="text-sm font-semibold text-purple-800">
+                    {isImportingPdf ? t('hotels.readingPdf') : t('hotels.choosePdf')}
+                  </p>
+                  <p className="mt-1 text-xs text-purple-500">
+                    {importFileName || t('hotels.choosePdfBody')}
+                  </p>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    disabled={isImportingPdf}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      importPdfFile(file)
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-purple-100" />
+                  <span className="text-xs font-medium text-purple-400">
+                    {t('hotels.orPasteText')}
+                  </span>
+                  <div className="h-px flex-1 bg-purple-100" />
+                </div>
+
                 <textarea
                   value={importText}
                   onChange={(event) => {

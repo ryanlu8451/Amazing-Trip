@@ -3,55 +3,139 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /trips/{tripId} {
-      // Helper function to normalize email for comparison
-      function normalizeEmail(email) {
-        return email.lower();
+      function isSignedIn() {
+        return request.auth != null
+          && request.auth.uid is string
+          && request.auth.token.email is string;
       }
 
-      // Get the authenticated user's normalized email
       function userEmail() {
-        return request.auth.token.email;
+        return request.auth.token.email.lower();
       }
 
-      // Check if user is a member of the trip
-      function isMember() {
-        return request.auth != null && userEmail() in resource.data.memberEmails;
+      function userIsListedMember(data) {
+        return isSignedIn()
+          && data.memberEmails is list
+          && userEmail() in data.memberEmails;
       }
 
-      // Check if user can edit (owner or editor role)
-      function canEdit() {
-        let role = resource.data.memberRoles[userEmail()];
-        return role == 'owner' || role == 'editor';
+      function userRole(data) {
+        return data.memberRoles[userEmail()];
       }
 
-      // Check if user is the owner
-      function isOwner() {
-        return resource.data.ownerId == request.auth.uid;
+      function userCanEdit(data) {
+        return userIsListedMember(data)
+          && (userRole(data) == 'owner' || userRole(data) == 'editor');
       }
 
-      // Editors can update trip content, but cannot change ownership or membership.
-      function keepsMembershipStable() {
+      function userIsOwner(data) {
+        return isSignedIn()
+          && data.ownerId == request.auth.uid
+          && data.ownerEmail == userEmail()
+          && userRole(data) == 'owner';
+      }
+
+      function ownershipIsStable() {
         return request.resource.data.ownerId == resource.data.ownerId
-          && request.resource.data.ownerEmail == resource.data.ownerEmail
-          && request.resource.data.memberEmails == resource.data.memberEmails
+          && request.resource.data.ownerEmail == resource.data.ownerEmail;
+      }
+
+      function membershipIsStable() {
+        return request.resource.data.memberEmails == resource.data.memberEmails
           && request.resource.data.memberRoles == resource.data.memberRoles;
       }
 
-      allow read: if request.auth != null && isMember();
+      function validTripShape(data) {
+        return data.keys().hasOnly([
+            'id',
+            'name',
+            'destination',
+            'startDate',
+            'endDate',
+            'coverEmoji',
+            'members',
+            'tripType',
+            'flights',
+            'hotels',
+            'budget',
+            'timeline',
+            'tips',
+            'status',
+            'isHidden',
+            'ownerId',
+            'ownerEmail',
+            'memberEmails',
+            'memberRoles',
+            'updatedAt'
+          ])
+          && data.id == tripId
+          && data.name is string
+          && data.name.size() <= 120
+          && data.destination is string
+          && data.destination.size() <= 120
+          && data.startDate is string
+          && data.startDate.size() <= 20
+          && data.endDate is string
+          && data.endDate.size() <= 20
+          && data.coverEmoji is string
+          && data.coverEmoji.size() <= 32
+          && data.members is list
+          && data.members.size() <= 50
+          && data.tripType in ['solo', 'group']
+          && data.flights is list
+          && data.flights.size() <= 200
+          && data.hotels is list
+          && data.hotels.size() <= 200
+          && data.budget is list
+          && data.budget.size() <= 500
+          && data.timeline is list
+          && data.timeline.size() <= 120
+          && data.tips is map
+          && data.status in ['planning', 'completed']
+          && data.isHidden is bool
+          && data.ownerId is string
+          && data.ownerId.size() > 0
+          && data.ownerId.size() <= 128
+          && data.ownerEmail is string
+          && data.ownerEmail == data.ownerEmail.lower()
+          && data.ownerEmail.size() <= 254
+          && data.memberEmails is list
+          && data.memberEmails.size() > 0
+          && data.memberEmails.size() <= 50
+          && data.ownerEmail in data.memberEmails
+          && data.memberRoles is map
+          && data.memberRoles.keys().hasAll(data.memberEmails)
+          && data.memberRoles.keys().hasOnly(data.memberEmails)
+          && data.memberRoles[data.ownerEmail] == 'owner'
+          && data.updatedAt is timestamp;
+      }
 
-      allow create: if request.auth != null
+      allow read: if userIsListedMember(resource.data);
+
+      allow create: if isSignedIn()
+        && validTripShape(request.resource.data)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerEmail == userEmail()
         && userEmail() in request.resource.data.memberEmails
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.memberRoles[userEmail()] == 'owner';
 
-      allow update: if request.auth != null
-        && isMember()
+      allow update: if isSignedIn()
+        && userIsListedMember(resource.data)
+        && validTripShape(request.resource.data)
+        && ownershipIsStable()
         && (
-          isOwner()
-          || (canEdit() && keepsMembershipStable())
+          userIsOwner(resource.data)
+          || (
+            userCanEdit(resource.data)
+            && membershipIsStable()
+          )
         );
 
-      allow delete: if request.auth != null
-        && isOwner();
+      allow delete: if userIsOwner(resource.data);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

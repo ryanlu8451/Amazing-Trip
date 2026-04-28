@@ -43,6 +43,24 @@ const TYPE_ICON = {
   rest: '☕',
 }
 
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => {
+  const hour = index + 1
+  return {
+    value: String(hour),
+    label: String(hour).padStart(2, '0'),
+  }
+})
+
+const MINUTE_OPTIONS = ['00', '15', '30', '45'].map((minute) => ({
+  value: minute,
+  label: minute,
+}))
+
+const PERIOD_OPTIONS = [
+  { value: 'AM', label: 'AM' },
+  { value: 'PM', label: 'PM' },
+]
+
 const emptyTripForm = {
   name: '',
   destination: '',
@@ -60,7 +78,7 @@ const emptyDay = {
 }
 
 const emptyItem = {
-  time: '',
+  time: '09:00',
   icon: '📍',
   title: '',
   location: '',
@@ -121,6 +139,70 @@ function getTimeValue(time) {
   }
 
   return hours * 60 + minutes
+}
+
+function getTimeParts(time) {
+  const timeValue = String(time || '').trim()
+  const matchedTime = timeValue.match(/^(\d{1,2}):(\d{2})/)
+  const date = new Date()
+
+  if (!matchedTime) {
+    const currentHours = date.getHours()
+    const roundedMinutes = String(Math.round(date.getMinutes() / 15) * 15)
+      .padStart(2, '0')
+      .replace('60', '00')
+
+    return {
+      hour: String(currentHours % 12 || 12),
+      minute: MINUTE_OPTIONS.some((option) => option.value === roundedMinutes) ? roundedMinutes : '00',
+      period: currentHours >= 12 ? 'PM' : 'AM',
+    }
+  }
+
+  const hours = Number(matchedTime[1])
+  const minutes = matchedTime[2]
+
+  return {
+    hour: String(hours % 12 || 12),
+    minute: MINUTE_OPTIONS.some((option) => option.value === minutes) ? minutes : '00',
+    period: hours >= 12 ? 'PM' : 'AM',
+  }
+}
+
+function buildTimeValue(hour, minute, period) {
+  let hours = Number(hour)
+
+  if (period === 'PM' && hours < 12) {
+    hours += 12
+  }
+
+  if (period === 'AM' && hours === 12) {
+    hours = 0
+  }
+
+  return `${String(hours).padStart(2, '0')}:${minute}`
+}
+
+function normalizeExternalUrl(url) {
+  const cleanedUrl = String(url || '').trim()
+
+  if (!cleanedUrl) {
+    return ''
+  }
+
+  if (/^https?:\/\//i.test(cleanedUrl)) {
+    return cleanedUrl
+  }
+
+  return `https://${cleanedUrl}`
+}
+
+function getActivityMapUrl(item) {
+  if (item.mapUrl) {
+    return normalizeExternalUrl(item.mapUrl)
+  }
+
+  return ''
 }
 
 function sortTimelineItemsByTime(items) {
@@ -202,6 +284,7 @@ export default function Timeline() {
   const sortedTimeline = [...selectedTimeline].sort(
     (a, b) => Number(a.day) - Number(b.day)
   )
+  const itemTimeParts = getTimeParts(itemForm.time)
 
   const selectTrip = (tripId) => {
     setActiveTrip(tripId)
@@ -556,6 +639,7 @@ export default function Timeline() {
     const activityData = {
       ...itemForm,
       icon: TYPE_ICON[itemForm.type] || '📍',
+      mapUrl: normalizeExternalUrl(itemForm.mapUrl),
     }
 
     if (itemModal.type === 'add') {
@@ -863,6 +947,36 @@ export default function Timeline() {
                   <MoreHorizontal size={18} className="text-blue-500" />
                 </button>
               </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={openAddDayCard}
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2.5 text-xs font-semibold flex items-center justify-center gap-1 ${
+                    userCanEdit
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Plus size={14} />
+                  {t('timeline.addDailySchedule')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openEditTrip(selectedTrip)}
+                  disabled={!userCanEdit}
+                  className={`rounded-xl px-3 py-2.5 text-xs font-semibold flex items-center justify-center gap-1 ${
+                    userCanEdit
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Pencil size={14} />
+                  {t('common.edit')}
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -894,34 +1008,6 @@ export default function Timeline() {
                 </p>
               </div>
             )}
-
-            <div className="bg-white rounded-2xl shadow-sm p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-gray-400">{t('common.currentlyManaging')}</p>
-                  <h2 className="font-semibold text-gray-800 mt-1">
-                    {selectedTrip.coverEmoji || '🌍'} {selectedTrip.name || selectedTrip.destination || t('common.untitledTrip')}
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {selectedTrip.startDate || t('common.startDate')} → {selectedTrip.endDate || t('common.endDate')}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={openAddDayCard}
-                  disabled={!userCanEdit}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-1 shrink-0 ${
-                    userCanEdit
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Plus size={14} />
-                  {t('timeline.dailySchedule')}
-                </button>
-              </div>
-            </div>
 
             {showDayCard && (
               <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-5">
@@ -1050,7 +1136,7 @@ export default function Timeline() {
                         {day.title}
                       </div>
                       <div className="text-xs text-gray-400">
-                        {day.date} · {doneCount}/{itemCount} done
+                        {day.date} · {t('timeline.doneCount', { done: doneCount, total: itemCount })}
                       </div>
                     </div>
 
@@ -1087,98 +1173,106 @@ export default function Timeline() {
                         </div>
                       )}
 
-                      {sortedDayItems.map((item, index) => (
-                        <div key={item.id} className="flex gap-3 py-3">
-                          <div className="text-xs text-gray-400 w-12 pt-1 shrink-0">
-                            {item.time || '--:--'}
-                          </div>
+                      {sortedDayItems.map((item, index) => {
+                        const activityMapUrl = getActivityMapUrl(item)
+                        const ActivityContent = activityMapUrl ? 'a' : 'div'
 
-                          <div className="relative flex flex-col items-center mr-1">
-                            <button
-                              type="button"
-                              onClick={() => toggleActivityDone(day.id, item)}
-                              disabled={!userCanEdit}
-                              className={`w-4 h-4 rounded-full mt-0.5 shrink-0 border ${
-                                item.status === 'done'
-                                  ? 'bg-green-500 border-green-500'
-                                  : 'bg-white border-blue-300'
-                              } ${userCanEdit ? '' : 'cursor-default'}`}
-                            />
+                        return (
+                          <div key={item.id} className="flex gap-3 py-3">
+                            <div className="text-xs text-gray-400 w-12 pt-1 shrink-0">
+                              {item.time || '--:--'}
+                            </div>
 
-                            {index < sortedDayItems.length - 1 && (
-                              <div
-                                className="w-0.5 bg-blue-100 flex-1 mt-1"
-                                style={{ minHeight: '34px' }}
+                            <div className="relative flex flex-col items-center mr-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleActivityDone(day.id, item)}
+                                disabled={!userCanEdit}
+                                className={`w-4 h-4 rounded-full mt-0.5 shrink-0 border ${
+                                  item.status === 'done'
+                                    ? 'bg-green-500 border-green-500'
+                                    : 'bg-white border-blue-300'
+                                } ${userCanEdit ? '' : 'cursor-default'}`}
                               />
-                            )}
-                          </div>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-2 min-w-0">
-                                <span className="text-lg leading-none shrink-0">
-                                  {item.icon}
-                                </span>
-
-                                <div className="min-w-0">
-                                  <p
-                                    className={`text-sm font-medium ${
-                                      item.status === 'done'
-                                        ? 'text-gray-400 line-through'
-                                        : 'text-gray-800'
-                                    }`}
-                                  >
-                                    {item.title}
-                                  </p>
-
-                                  {item.location && (
-                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                      <MapPin size={12} />
-                                      {item.location}
-                                    </p>
-                                  )}
-
-                                  {item.note && (
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      {item.note}
-                                    </p>
-                                  )}
-
-                                  {item.mapUrl && (
-                                    <a
-                                      href={item.mapUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-xs text-blue-500 mt-1 inline-flex items-center gap-1"
-                                    >
-                                      <LinkIcon size={12} />
-                                      {t('timeline.openMap')}
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-
-                              {userCanEdit && (
-                                <div className="flex gap-2 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditItem(day.id, item)}
-                                  >
-                                    <Pencil size={13} className="text-gray-300 hover:text-gray-500" />
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => removeItem(day.id, item.id)}
-                                  >
-                                    <Trash2 size={13} className="text-gray-300 hover:text-rose-400" />
-                                  </button>
-                                </div>
+                              {index < sortedDayItems.length - 1 && (
+                                <div
+                                  className="w-0.5 bg-blue-100 flex-1 mt-1"
+                                  style={{ minHeight: '34px' }}
+                                />
                               )}
                             </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <ActivityContent
+                                  href={activityMapUrl || undefined}
+                                  target={activityMapUrl ? '_blank' : undefined}
+                                  rel={activityMapUrl ? 'noreferrer' : undefined}
+                                  aria-label={activityMapUrl ? t('timeline.openMap') : undefined}
+                                  className={`flex items-start gap-2 min-w-0 rounded-xl -m-2 p-2 flex-1 ${
+                                    activityMapUrl ? 'active:bg-blue-50' : ''
+                                  }`}
+                                >
+                                  <span className="text-lg leading-none shrink-0">
+                                    {item.icon}
+                                  </span>
+
+                                  <div className="min-w-0">
+                                    <p
+                                      className={`text-sm font-medium ${
+                                        item.status === 'done'
+                                          ? 'text-gray-400 line-through'
+                                          : 'text-gray-800'
+                                      }`}
+                                    >
+                                      {item.title}
+                                    </p>
+
+                                    {item.location && (
+                                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        <MapPin size={12} />
+                                        {item.location}
+                                      </p>
+                                    )}
+
+                                    {item.note && (
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        {item.note}
+                                      </p>
+                                    )}
+
+                                    {activityMapUrl && (
+                                      <p className="text-xs text-blue-500 mt-1 inline-flex items-center gap-1">
+                                        <LinkIcon size={12} />
+                                        {t('timeline.tapOpenMap')}
+                                      </p>
+                                    )}
+                                  </div>
+                                </ActivityContent>
+
+                                {userCanEdit && (
+                                  <div className="flex gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditItem(day.id, item)}
+                                    >
+                                      <Pencil size={13} className="text-gray-300 hover:text-gray-500" />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => removeItem(day.id, item.id)}
+                                    >
+                                      <Trash2 size={13} className="text-gray-300 hover:text-rose-400" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
 
                       <button
                         type="button"
@@ -1360,12 +1454,66 @@ export default function Timeline() {
             }))}
           />
 
-          <InputField
-            label={t('timeline.time')}
-            value={itemForm.time}
-            onChange={(value) => updateItemForm('time', value)}
-            placeholder="09:00"
-          />
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              {t('timeline.time')}
+            </label>
+            <div className="grid grid-cols-[1fr_1fr_1fr] gap-2">
+              <select
+                value={itemTimeParts.hour}
+                onChange={(event) =>
+                  updateItemForm(
+                    'time',
+                    buildTimeValue(event.target.value, itemTimeParts.minute, itemTimeParts.period)
+                  )
+                }
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-400 bg-white"
+                aria-label={t('timeline.timeHour')}
+              >
+                {HOUR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={itemTimeParts.minute}
+                onChange={(event) =>
+                  updateItemForm(
+                    'time',
+                    buildTimeValue(itemTimeParts.hour, event.target.value, itemTimeParts.period)
+                  )
+                }
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-400 bg-white"
+                aria-label={t('timeline.timeMinute')}
+              >
+                {MINUTE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={itemTimeParts.period}
+                onChange={(event) =>
+                  updateItemForm(
+                    'time',
+                    buildTimeValue(itemTimeParts.hour, itemTimeParts.minute, event.target.value)
+                  )
+                }
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-400 bg-white"
+                aria-label={t('timeline.timePeriod')}
+              >
+                {PERIOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <InputField
             label={t('timeline.activityName')}

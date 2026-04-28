@@ -1,11 +1,13 @@
-import { CheckCircle2, Globe2, Info, Languages } from 'lucide-react'
+import { CheckCircle2, Globe2, Info, Languages, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { translate, useTranslation } from '../lib/i18n'
 import { LANGUAGE_OPTIONS, useSettingsStore } from '../store/settingsStore'
+import { useAuthStore } from '../store/authStore'
 
 export default function SettingsPage() {
   const { language, t } = useTranslation()
   const setLanguage = useSettingsStore((state) => state.setLanguage)
+  const logOut = useAuthStore((state) => state.logOut)
   const [message, setMessage] = useState('')
 
   const selectLanguage = (nextLanguage) => {
@@ -15,6 +17,10 @@ export default function SettingsPage() {
 
   const currentLanguage =
     LANGUAGE_OPTIONS.find((option) => option.value === language) || LANGUAGE_OPTIONS[0]
+
+  const handleLogOut = async () => {
+    await logOut()
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
@@ -126,16 +132,29 @@ export default function SettingsPage() {
 
         <section className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="font-semibold text-gray-800">
-            {t('settings.todoTitle')}
+            {t('settings.releaseTitle')}
           </h2>
           <div className="mt-4 space-y-3">
-            {[t('settings.todoShare'), t('settings.todoLogin')].map((item) => (
+            {[
+              t('settings.releaseDeveloper'),
+              t('settings.releaseVersion'),
+              t('settings.releaseCopyright'),
+            ].map((item) => (
               <div key={item} className="flex items-start gap-3 rounded-xl bg-gray-50 p-3">
                 <CheckCircle2 size={16} className="text-gray-400 shrink-0 mt-0.5" />
                 <p className="text-sm text-gray-600">{item}</p>
               </div>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={handleLogOut}
+            className="mt-5 w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 flex items-center justify-center gap-2 active:bg-red-100"
+          >
+            <LogOut size={17} />
+            {t('settings.logOut')}
+          </button>
         </section>
       </div>
     </div>

@@ -3,6 +3,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ClipboardPaste,
   Clock,
   DollarSign,
   Eye,
@@ -18,6 +19,7 @@ import {
   ShieldCheck,
   Ticket,
   Trash2,
+  Upload,
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
@@ -78,6 +80,10 @@ const CURRENCY_OPTIONS = [
   { value: 'JPY', label: 'JPY' },
   { value: 'EUR', label: 'EUR' },
 ]
+
+const PDFJS_SCRIPT_URL = '/pdfjs/pdf.min.js?v=20260428c'
+const PDFJS_WORKER_URL = '/pdfjs/pdf.worker.min.js?v=20260428c'
+let pdfJsLoadPromise = null
 
 const AIRPORT_TIPS = [
   {
@@ -321,6 +327,624 @@ function formatTripTotal(amount, currencyLabel) {
   })}`
 }
 
+function getReadableError(error) {
+  return [error?.name, error?.message].filter(Boolean).join(': ') || String(error || 'Unknown error')
+}
+
+function configurePdfJsWorker(pdfjsLib) {
+  if (pdfjsLib?.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL
+  }
+
+  return pdfjsLib
+}
+
+function loadPdfJs() {
+  if (window.pdfjsLib) {
+    return Promise.resolve(configurePdfJsWorker(window.pdfjsLib))
+  }
+
+  if (pdfJsLoadPromise) {
+    return pdfJsLoadPromise
+  }
+
+  pdfJsLoadPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector(`script[src="${PDFJS_SCRIPT_URL}"]`)
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(configurePdfJsWorker(window.pdfjsLib)))
+      existingScript.addEventListener('error', () => reject(new Error('PDF.js script failed to load.')))
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = PDFJS_SCRIPT_URL
+    script.async = true
+    script.onload = () => {
+      if (window.pdfjsLib) {
+        resolve(configurePdfJsWorker(window.pdfjsLib))
+        return
+      }
+
+      reject(new Error('PDF.js loaded without browser API.'))
+    }
+    script.onerror = () => reject(new Error('PDF.js script failed to load.'))
+    document.head.append(script)
+  })
+
+  return pdfJsLoadPromise
+}
+
+const MONTH_INDEX = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+}
+
+const FIELD_LABEL_PATTERN =
+  /^(flight|airline|carrier|operated|from|to|origin|destination|departure|arrival|booking|confirmation|reservation|record locator|pnr|terminal|gate|seat|cabin|class|total|amount|price|payment|paid|航班|班機|航空|出發|起飛|抵達|到達|訂位|訂票|確認|航廈|登機門|座位|艙等|總計|合計|付款|金額)/i
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function cleanFieldValue(value) {
+  return String(value || '')
+    .replace(/^[\s:：#\-–—]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function getLineValue(lines, keywords, options = {}) {
+  const maxNextLines = options.maxNextLines ?? 2
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    const matchedKeyword = keywords.find((keyword) =>
+      line.toLowerCase().includes(keyword.toLowerCase())
+    )
+
+    if (!matchedKeyword) {
+      continue
+    }
+
+    const inlineMatch = line.match(
+      new RegExp(`${escapeRegex(matchedKeyword)}\\s*[:：#\\-–—]\\s*(.+)$`, 'i')
+    )
+    const valueFromLine = cleanFieldValue(
+      inlineMatch?.[1] || line.replace(new RegExp(escapeRegex(matchedKeyword), 'ig'), '')
+    )
+
+    if (valueFromLine && valueFromLine.toLowerCase() !== line.toLowerCase()) {
+      return valueFromLine
+    }
+
+    for (let offset = 1; offset <= maxNextLines; offset += 1) {
+      const nextLine = lines[index + offset]
+
+      if (!nextLine) {
+        break
+      }
+
+      if (!FIELD_LABEL_PATTERN.test(nextLine) || options.allowLabelLikeValue) {
+        return cleanFieldValue(nextLine)
+      }
+    }
+  }
+
+  return ''
+}
+
+function toIsoDate(year, month, day) {
+  const fullYear = Number(year) < 100 ? Number(year) + 2000 : Number(year)
+  const normalizedMonth = Number(month)
+  const normalizedDay = Number(day)
+  const date = new Date(fullYear, normalizedMonth - 1, normalizedDay)
+
+  if (
+    date.getFullYear() !== fullYear ||
+    date.getMonth() !== normalizedMonth - 1 ||
+    date.getDate() !== normalizedDay
+  ) {
+    return ''
+  }
+
+  return [
+    String(fullYear).padStart(4, '0'),
+    String(normalizedMonth).padStart(2, '0'),
+    String(normalizedDay).padStart(2, '0'),
+  ].join('-')
+}
+
+function normalizeDateText(value) {
+  if (!value) {
+    return ''
+  }
+
+  const normalizedValue = String(value)
+    .replace(/[（(].*?[）)]/g, ' ')
+    .replace(/星期[一二三四五六日天]|週[一二三四五六日天]/g, ' ')
+    .replace(/\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b,?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const isoMatch = normalizedValue.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
+
+  if (isoMatch) {
+    return toIsoDate(isoMatch[1], isoMatch[2], isoMatch[3])
+  }
+
+  const chineseMatch = normalizedValue.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/)
+
+  if (chineseMatch) {
+    return toIsoDate(chineseMatch[1], chineseMatch[2], chineseMatch[3])
+  }
+
+  const yearFirstMatch = normalizedValue.match(/\b(\d{4})[/.](\d{1,2})[/.](\d{1,2})\b/)
+
+  if (yearFirstMatch) {
+    return toIsoDate(yearFirstMatch[1], yearFirstMatch[2], yearFirstMatch[3])
+  }
+
+  const monthNamePattern = Object.keys(MONTH_INDEX).join('|')
+  const monthFirstMatch = normalizedValue.match(
+    new RegExp(`\\b(${monthNamePattern})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?[,]?\\s+(\\d{2,4})\\b`, 'i')
+  )
+
+  if (monthFirstMatch) {
+    return toIsoDate(monthFirstMatch[3], MONTH_INDEX[monthFirstMatch[1].toLowerCase()], monthFirstMatch[2])
+  }
+
+  const dayFirstMatch = normalizedValue.match(
+    new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthNamePattern})\\.?[,]?\\s+(\\d{2,4})\\b`, 'i')
+  )
+
+  if (dayFirstMatch) {
+    return toIsoDate(dayFirstMatch[3], MONTH_INDEX[dayFirstMatch[2].toLowerCase()], dayFirstMatch[1])
+  }
+
+  const numericMatch = normalizedValue.match(/\b(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})\b/)
+
+  if (numericMatch) {
+    const first = Number(numericMatch[1])
+    const second = Number(numericMatch[2])
+    const month = first > 12 ? second : first
+    const day = first > 12 ? first : second
+    return toIsoDate(numericMatch[3], month, day)
+  }
+
+  return ''
+}
+
+function normalizeTimeText(value) {
+  if (!value) {
+    return ''
+  }
+
+  const timeMatch = value.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\s*(AM|PM)?/i)
+
+  if (!timeMatch) {
+    return ''
+  }
+
+  let hours = Number(timeMatch[1])
+  const minutes = timeMatch[2]
+  const meridiem = timeMatch[3]?.toUpperCase()
+
+  if (meridiem === 'PM' && hours < 12) {
+    hours += 12
+  }
+
+  if (meridiem === 'AM' && hours === 12) {
+    hours = 0
+  }
+
+  return `${String(hours).padStart(2, '0')}:${minutes}`
+}
+
+function normalizeCurrency(value) {
+  if (!value) {
+    return 'CAD'
+  }
+
+  const upperValue = value.toUpperCase()
+
+  if (upperValue.includes('NT$') || upperValue.includes('NTD') || upperValue.includes('TWD')) {
+    return 'TWD'
+  }
+
+  if (upperValue.includes('US$') || upperValue.includes('USD')) {
+    return 'USD'
+  }
+
+  if (upperValue.includes('JPY') || upperValue.includes('¥')) {
+    return 'JPY'
+  }
+
+  if (upperValue.includes('EUR') || upperValue.includes('€')) {
+    return 'EUR'
+  }
+
+  if (upperValue.includes('CAD') || upperValue.includes('CA$')) {
+    return 'CAD'
+  }
+
+  return 'CAD'
+}
+
+function getMoneyMatches(line) {
+  return [...line.matchAll(
+    /(CAD|CA\$|USD|US\$|TWD|NTD|NT\$|JPY|¥|EUR|€|\$)\s*([0-9][0-9,]*(?:\.\d{1,2})?)|([0-9][0-9,]*(?:\.\d{1,2})?)\s*(CAD|USD|TWD|NTD|JPY|EUR|日圓|台幣|新台幣)/gi
+  )]
+}
+
+function scoreMoneyLine(line) {
+  let score = 0
+
+  if (/grand total|total price|total fare|total amount|amount paid|total paid|總計|合計|總額|付款金額|已付款|實付|票價總額/i.test(line)) {
+    score += 12
+  }
+
+  if (/total|amount|price|paid|payment|charge|fare|機票|票價|金額|付款/i.test(line)) {
+    score += 6
+  }
+
+  if (/tax|fee|discount|coupon|credit|saving|refund|baggage|seat fee|稅|服務費|折扣|優惠|退款|行李|選位/i.test(line)) {
+    score -= 8
+  }
+
+  return score
+}
+
+function extractAmount(text) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const candidates = lines.flatMap((line, index) => {
+    const context = [lines[index - 1], line, lines[index + 1]].filter(Boolean).join(' ')
+    const score = scoreMoneyLine(context)
+
+    return getMoneyMatches(line).map((match) => {
+      const amount = Number((match[2] || match[3] || '').replace(/,/g, ''))
+
+      return {
+        amount,
+        currency: normalizeCurrency(match[1] || match[4] || line),
+        score,
+        index,
+      }
+    })
+  }).filter((candidate) => candidate.amount > 0)
+
+  if (candidates.length === 0) {
+    return {
+      amount: '',
+      currency: 'CAD',
+    }
+  }
+
+  const bestCandidate = candidates.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score
+    }
+
+    if (b.amount !== a.amount) {
+      return b.amount - a.amount
+    }
+
+    return a.index - b.index
+  })[0]
+
+  return {
+    amount: Number.isNaN(bestCandidate.amount) ? '' : bestCandidate.amount,
+    currency: bestCandidate.currency,
+  }
+}
+
+function extractFlightCode(text) {
+  const flightNumberMatch =
+    text.match(/(?:flight|flight no\.?|flight number|航班|班機)\s*[:#：-]?\s*([A-Z]{2,3}\s?\d{2,4}[A-Z]?)/i) ||
+    text.match(/\b([A-Z]{2,3}\s?\d{2,4}[A-Z]?)\b/)
+
+  return flightNumberMatch ? flightNumberMatch[1].replace(/\s+/g, '').toUpperCase() : ''
+}
+
+function titleCase(value) {
+  if (/^WESTJET$/i.test(String(value || '').trim())) {
+    return 'WestJet'
+  }
+
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function normalizePlace(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*,\s*/g, ', ')
+    .trim()
+}
+
+function getCityFromPlace(value) {
+  const cleanedValue = normalizePlace(value)
+    .replace(/\b(INTL|INTERNATIONAL|AIRPORT|APT|AB|ON|BC|QC|MB|SK|NS|NB|NL|PE|NT|YT|NU)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return titleCase(cleanedValue || value)
+}
+
+function extractRoutePlacesFromText(text) {
+  const blockedWords = /RESERVATION|ISSUE|TICKET|AIRLINE|AGENT|FREQUENT|ITINERARY|TRAVEL DATE|DEPARTURE|ARRIVAL|OTHER NOTES|CABIN|SEAT|BOOKING|STATUS|FARE/i
+  const places = [...text.matchAll(/([A-Z][A-Z\s]+?),\s*(CANADA|UNITED STATES|USA|TAIWAN|JAPAN)\b/g)]
+    .map((match) => normalizePlace(match[1]))
+    .filter((place) => place && !blockedWords.test(place))
+
+  return {
+    departurePlace: places[0] || '',
+    arrivalPlace: places[1] || '',
+  }
+}
+
+function getFirstMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+
+    if (match?.[1]) {
+      return match[1].trim()
+    }
+  }
+
+  return ''
+}
+
+function parseWestJetEticket(text, currentForm) {
+  const normalizedText = text.replace(/\s+/g, ' ').trim()
+
+  if (!/WESTJET|eTicket Receipt|Itinerary Details/i.test(normalizedText)) {
+    return null
+  }
+
+  const reservationCode = getFirstMatch(normalizedText, [
+    /RESERVATION CODE\s+([A-Z0-9]{5,8})/i,
+  ])
+  const issuingAirline = getFirstMatch(normalizedText, [
+    /ISSUING AIRLINE\s+([A-Z][A-Z\s]+?)(?=\s+ISSUING AGENT|\s+FREQUENT FLYER|\s+Itinerary Details|$)/i,
+  ])
+  const flightCode = getFirstMatch(normalizedText, [
+    /\b(W[S]\s?\d{2,4})\b/i,
+  ])
+  const departureDate = normalizeDateText(
+    getFirstMatch(normalizedText, [/Departure:\s*([0-9]{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4})/i])
+  )
+  const arrivalDate = normalizeDateText(
+    getFirstMatch(normalizedText, [/Arrival:\s*([0-9]{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4})/i])
+  )
+  const times = [...normalizedText.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\s*(AM|PM)\b/gi)]
+    .map((match) => normalizeTimeText(match[0]))
+    .filter(Boolean)
+  const routeMatch = normalizedText.match(
+    /\bWS\s?\d{2,4}\s+(.+?),\s*(CANADA|UNITED STATES|USA|TAIWAN|JAPAN)\s+(.+?),\s*(CANADA|UNITED STATES|USA|TAIWAN|JAPAN)\b/i
+  )
+  const fallbackRoutePlaces = extractRoutePlacesFromText(normalizedText)
+  const departurePlace = normalizePlace(routeMatch?.[1] || fallbackRoutePlaces.departurePlace)
+  const arrivalPlace = normalizePlace(routeMatch?.[3] || fallbackRoutePlaces.arrivalPlace)
+  const cabin = getFirstMatch(normalizedText, [
+    /Cabin\s+([A-Z][A-Z\s]+?)(?=\s+Seat Number|\s+CHECK-IN|\s+Included Bags|$)/i,
+  ])
+
+  return {
+    airline: titleCase(issuingAirline || 'WESTJET'),
+    code: flightCode.replace(/\s+/g, '').toUpperCase() || currentForm.code,
+    fromCity: departurePlace ? getCityFromPlace(departurePlace) : currentForm.fromCity,
+    fromAirport: departurePlace ? titleCase(departurePlace) : currentForm.fromAirport,
+    toCity: arrivalPlace ? getCityFromPlace(arrivalPlace) : currentForm.toCity,
+    toAirport: arrivalPlace ? titleCase(arrivalPlace) : currentForm.toAirport,
+    date: departureDate || currentForm.date,
+    arrDate: arrivalDate || currentForm.arrDate,
+    depTime: times[0] || currentForm.depTime,
+    arrTime: times[1] || currentForm.arrTime,
+    bookingRef: reservationCode || currentForm.bookingRef,
+    seat: cabin ? titleCase(cabin) : currentForm.seat,
+    status: 'confirmed',
+  }
+}
+
+function extractAirportCode(value) {
+  if (!value) {
+    return ''
+  }
+
+  const airportMatch = value.match(/\b[A-Z]{3}\b/)
+  return airportMatch ? airportMatch[0] : ''
+}
+
+function getRouteValue(lines, keywords) {
+  const routeLine = getLineValue(lines, keywords)
+
+  if (routeLine) {
+    return routeLine
+  }
+
+  const matchedLine = lines.find((line) => /\b[A-Z]{3}\b/.test(line))
+  return matchedLine || ''
+}
+
+function parseFlightConfirmation(text, currentForm) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const normalizedText = lines.join('\n')
+  const westJetData = parseWestJetEticket(normalizedText, currentForm)
+
+  if (westJetData) {
+    const { amount, currency } = extractAmount(text)
+
+    return {
+      ...westJetData,
+      currency: amount ? currency : currentForm.currency,
+      price: amount || currentForm.price,
+    }
+  }
+
+  const airline =
+    getLineValue(lines, ['Airline', 'Operated by', 'Carrier', '航空公司']) ||
+    currentForm.airline
+  const code = extractFlightCode(normalizedText) || currentForm.code
+  const departureLine = getRouteValue(lines, [
+    'From',
+    'Departure airport',
+    'Departing from',
+    'Origin',
+    '出發',
+    '起飛',
+  ])
+  const arrivalLine = getRouteValue(lines, [
+    'To',
+    'Arrival airport',
+    'Arriving at',
+    'Destination',
+    '抵達',
+    '到達',
+  ])
+  const departureAirport = extractAirportCode(departureLine) || currentForm.fromAirport
+  const arrivalAirport =
+    extractAirportCode(arrivalLine.replace(departureAirport, '')) || currentForm.toAirport
+  const departureDate =
+    normalizeDateText(
+      getLineValue(lines, ['Departure date', 'Depart date', 'Departing', 'Date', '出發日期'])
+    ) ||
+    normalizeDateText(departureLine) ||
+    currentForm.date
+  const arrivalDate =
+    normalizeDateText(getLineValue(lines, ['Arrival date', 'Arrive date', 'Arriving', '抵達日期'])) ||
+    normalizeDateText(arrivalLine) ||
+    currentForm.arrDate
+  const departureTime =
+    normalizeTimeText(getLineValue(lines, ['Departure time', 'Depart time', 'Departs', '出發時間'])) ||
+    normalizeTimeText(departureLine) ||
+    currentForm.depTime
+  const arrivalTime =
+    normalizeTimeText(getLineValue(lines, ['Arrival time', 'Arrive time', 'Arrives', '抵達時間'])) ||
+    normalizeTimeText(arrivalLine) ||
+    currentForm.arrTime
+  const bookingRef =
+    getLineValue(lines, [
+      'Booking reference',
+      'Booking ref',
+      'Confirmation number',
+      'Reservation code',
+      'Record locator',
+      'PNR',
+      '訂位代號',
+      '訂位編號',
+    ]) || currentForm.bookingRef
+  const terminal =
+    getLineValue(lines, ['Terminal', '航廈']) ||
+    currentForm.terminal
+  const gate =
+    getLineValue(lines, ['Gate', '登機門']) ||
+    currentForm.gate
+  const seat =
+    getLineValue(lines, ['Cabin', 'Class', 'Seat class', '艙等']) ||
+    currentForm.seat
+  const { amount, currency } = extractAmount(text)
+
+  return {
+    airline,
+    code,
+    fromAirport: departureAirport,
+    toAirport: arrivalAirport,
+    fromCity: currentForm.fromCity || departureLine.replace(/\b[A-Z]{3}\b/g, '').trim(),
+    toCity: currentForm.toCity || arrivalLine.replace(/\b[A-Z]{3}\b/g, '').trim(),
+    date: departureDate,
+    arrDate: arrivalDate,
+    depTime: departureTime,
+    arrTime: arrivalTime,
+    bookingRef,
+    terminal,
+    gate,
+    seat,
+    status: 'confirmed',
+    currency: amount ? currency : currentForm.currency,
+    price: amount || currentForm.price,
+  }
+}
+
+async function extractTextFromPdf(file) {
+  const pdfjsLib = await loadPdfJs()
+  const fileData = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({
+    data: new Uint8Array(fileData),
+    isEvalSupported: false,
+    useSystemFonts: true,
+  }).promise
+
+  const pageTexts = []
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber)
+    const textContent = await page.getTextContent()
+    const rows = textContent.items.reduce((lineGroups, item) => {
+      const y = Math.round(item.transform[5])
+      const matchingLine = lineGroups.find((line) => Math.abs(line.y - y) <= 3)
+
+      if (matchingLine) {
+        matchingLine.items.push(item)
+        return lineGroups
+      }
+
+      lineGroups.push({
+        y,
+        items: [item],
+      })
+
+      return lineGroups
+    }, [])
+    const pageText = rows
+      .sort((a, b) => b.y - a.y)
+      .map((line) =>
+        line.items
+          .sort((a, b) => a.transform[4] - b.transform[4])
+          .map((item) => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      )
+      .filter(Boolean)
+      .join('\n')
+
+    if (pageText) {
+      pageTexts.push(pageText)
+    }
+  }
+
+  return pageTexts.join('\n')
+}
+
 export default function Flights() {
   const {
     trips,
@@ -342,6 +966,11 @@ export default function Flights() {
   const [showHiddenFlights, setShowHiddenFlights] = useState(false)
   const [showCompletedFlights, setShowCompletedFlights] = useState(false)
   const [openActionsFlightKey, setOpenActionsFlightKey] = useState('')
+  const [showImportBox, setShowImportBox] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importMessage, setImportMessage] = useState('')
+  const [importFileName, setImportFileName] = useState('')
+  const [isImportingPdf, setIsImportingPdf] = useState(false)
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
   const userCanEdit = canEditTrip(selectedTrip, user)
@@ -374,6 +1003,7 @@ export default function Flights() {
     setActiveTrip(selectedTrip.id)
     setForm(emptyFlight)
     setError('')
+    resetImportTools()
     setModal({
       mode: 'add',
       tripId: selectedTrip.id,
@@ -402,6 +1032,7 @@ export default function Flights() {
       duration: getFlightDuration(normalizedFlight),
     })
     setError('')
+    resetImportTools()
     setModal({
       mode: 'edit',
       tripId: selectedTrip.id,
@@ -414,6 +1045,15 @@ export default function Flights() {
     setModal(null)
     setForm(emptyFlight)
     setError('')
+    resetImportTools()
+  }
+
+  const resetImportTools = () => {
+    setShowImportBox(false)
+    setImportText('')
+    setImportMessage('')
+    setImportFileName('')
+    setIsImportingPdf(false)
   }
 
   const updateForm = (key) => (value) => {
@@ -436,6 +1076,66 @@ export default function Flights() {
 
       return updatedForm
     })
+  }
+
+  const applyImportedFlightText = (text) => {
+    if (!userCanEdit) {
+      setImportMessage(t('common.noEditPermission'))
+      return
+    }
+
+    if (!text.trim()) {
+      setImportMessage(t('flights.pasteFirst'))
+      return
+    }
+
+    setForm((currentForm) => {
+      const importedData = parseFlightConfirmation(text, currentForm)
+      const updatedForm = {
+        ...currentForm,
+        ...importedData,
+      }
+
+      updatedForm.duration = calculateDuration(
+        updatedForm.date,
+        updatedForm.depTime,
+        updatedForm.arrDate,
+        updatedForm.arrTime
+      )
+
+      return updatedForm
+    })
+
+    setImportMessage(t('flights.imported'))
+  }
+
+  const importConfirmation = () => {
+    applyImportedFlightText(importText)
+  }
+
+  const importPdfFile = async (file) => {
+    if (!file) {
+      return
+    }
+
+    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      setImportMessage(t('flights.pdfOnly'))
+      return
+    }
+
+    setIsImportingPdf(true)
+    setImportFileName(file.name)
+    setImportMessage(t('flights.readingPdf'))
+
+    try {
+      const pdfText = await extractTextFromPdf(file)
+      setImportText(pdfText)
+      applyImportedFlightText(pdfText)
+    } catch (error) {
+      setImportMessage(t('flights.pdfReadFailedDetail', { error: getReadableError(error) }))
+    } finally {
+      setIsImportingPdf(false)
+    }
   }
 
   const save = () => {
@@ -1100,6 +1800,95 @@ export default function Flights() {
               {error}
             </div>
           )}
+
+          <div className="mb-4 rounded-2xl bg-blue-50 p-4">
+            <button
+              type="button"
+              onClick={() => setShowImportBox((value) => !value)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-blue-500">
+                  <ClipboardPaste size={18} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">
+                    {t('flights.importTitle')}
+                  </p>
+                  <p className="text-xs text-blue-500 mt-0.5">
+                    {t('flights.importBody')}
+                  </p>
+                </div>
+              </div>
+
+              <ChevronDown
+                size={18}
+                className={`text-blue-500 shrink-0 transition ${
+                  showImportBox ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {showImportBox && (
+              <div className="mt-4">
+                <label className="mb-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-blue-200 bg-white px-4 py-5 text-center active:bg-blue-50">
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+                    <Upload size={20} />
+                  </div>
+                  <p className="text-sm font-semibold text-blue-800">
+                    {isImportingPdf ? t('flights.readingPdf') : t('flights.choosePdf')}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-500">
+                    {importFileName || t('flights.choosePdfBody')}
+                  </p>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    disabled={isImportingPdf}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      importPdfFile(file)
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-blue-100" />
+                  <span className="text-xs font-medium text-blue-400">
+                    {t('flights.orPasteText')}
+                  </span>
+                  <div className="h-px flex-1 bg-blue-100" />
+                </div>
+
+                <textarea
+                  value={importText}
+                  onChange={(event) => {
+                    setImportText(event.target.value)
+                    setImportMessage('')
+                  }}
+                  className="w-full min-h-36 rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm text-gray-700 focus:outline-none focus:border-blue-400 resize-none"
+                  placeholder={t('flights.importPlaceholder')}
+                />
+
+                {importMessage && (
+                  <p className="text-xs text-blue-600 mt-2">
+                    {importMessage}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={importConfirmation}
+                  className="mt-3 w-full bg-blue-500 text-white rounded-xl py-2.5 text-sm font-semibold"
+                >
+                  {t('flights.autoFill')}
+                </button>
+              </div>
+            )}
+          </div>
 
           <SelectField
             label={t('flights.direction')}
