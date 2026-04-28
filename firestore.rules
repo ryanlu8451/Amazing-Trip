@@ -45,6 +45,14 @@ service cloud.firestore {
           && request.resource.data.memberRoles == resource.data.memberRoles;
       }
 
+      function validMemberRoles(data) {
+        return data.memberRoles is map
+          && data.memberRoles.keys().hasAll(data.memberEmails)
+          && data.memberRoles.keys().hasOnly(data.memberEmails)
+          && data.memberRoles.values().hasOnly(['owner', 'editor', 'viewer'])
+          && data.memberRoles[data.ownerEmail] == 'owner';
+      }
+
       function validTripShape(data) {
         return data.keys().hasOnly([
             'id',
@@ -104,9 +112,7 @@ service cloud.firestore {
           && data.memberEmails.size() <= 50
           && data.ownerEmail in data.memberEmails
           && data.memberRoles is map
-          && data.memberRoles.keys().hasAll(data.memberEmails)
-          && data.memberRoles.keys().hasOnly(data.memberEmails)
-          && data.memberRoles[data.ownerEmail] == 'owner'
+          && validMemberRoles(data)
           && data.updatedAt is timestamp;
       }
 

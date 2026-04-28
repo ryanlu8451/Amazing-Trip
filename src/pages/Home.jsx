@@ -18,6 +18,8 @@ import { useAuthStore } from '../store/authStore'
 import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField } from '../components/InputField'
+import OnboardingModal from '../components/OnboardingModal'
+import { useSettingsStore } from '../store/settingsStore'
 
 const emptyTripForm = {
   name: '',
@@ -121,6 +123,8 @@ export default function Home() {
   } = useTripStore()
   const { user, logOut } = useAuthStore()
   const { t } = useTranslation()
+  const hasSeenOnboarding = useSettingsStore((state) => state.hasSeenOnboarding)
+  const completeOnboarding = useSettingsStore((state) => state.completeOnboarding)
 
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -141,6 +145,7 @@ export default function Home() {
   const ownerEmail = activeTrip?.ownerEmail || user?.email || ''
   const memberEmails = activeTrip?.memberEmails || []
   const travelMemberEmails = memberEmails.filter((email) => email && email !== ownerEmail)
+  const shouldShowOnboarding = !hasSeenOnboarding
 
   const colors = [
     'bg-blue-500',
@@ -229,6 +234,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+      {shouldShowOnboarding && (
+        <OnboardingModal onClose={completeOnboarding} />
+      )}
+
       <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 px-6 pt-12 pb-8">
         <div className="max-w-lg mx-auto">
           <div className="flex items-start justify-between gap-4 mb-6">

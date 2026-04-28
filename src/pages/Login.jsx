@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { getBrowserEnvironment, getExternalBrowserName } from '../lib/browser'
 import { useTranslation } from '../lib/i18n'
 import { LANGUAGE_OPTIONS, useSettingsStore } from '../store/settingsStore'
+import InstallGuide from '../components/InstallGuide'
 
 export default function Login() {
   const {
@@ -111,6 +112,10 @@ export default function Login() {
           <p className="text-xs text-gray-400 text-center mt-4 leading-5">
             {t('login.googleOnlyNote')}
           </p>
+
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <InstallGuide compact />
+          </div>
         </div>
         <p className="text-xs text-white/70 text-center mt-4 leading-5">
           {t('login.termsNote')}

@@ -1,14 +1,18 @@
-import { CheckCircle2, Globe2, Info, Languages, LogOut } from 'lucide-react'
+import { BookOpen, CheckCircle2, Globe2, Info, Languages, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { translate, useTranslation } from '../lib/i18n'
 import { LANGUAGE_OPTIONS, useSettingsStore } from '../store/settingsStore'
 import { useAuthStore } from '../store/authStore'
+import OnboardingModal from '../components/OnboardingModal'
+import InstallGuide from '../components/InstallGuide'
 
 export default function SettingsPage() {
   const { language, t } = useTranslation()
   const setLanguage = useSettingsStore((state) => state.setLanguage)
+  const completeOnboarding = useSettingsStore((state) => state.completeOnboarding)
   const logOut = useAuthStore((state) => state.logOut)
   const [message, setMessage] = useState('')
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const selectLanguage = (nextLanguage) => {
     setLanguage(nextLanguage)
@@ -24,6 +28,15 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+      {showOnboarding && (
+        <OnboardingModal
+          onClose={() => {
+            completeOnboarding()
+            setShowOnboarding(false)
+          }}
+        />
+      )}
+
       <div className="bg-gradient-to-br from-slate-800 to-blue-700 px-6 pt-12 pb-6">
         <div className="max-w-lg mx-auto">
           <p className="text-blue-100 text-sm font-medium tracking-wide">
@@ -111,6 +124,33 @@ export default function SettingsPage() {
               {message}
             </div>
           )}
+        </section>
+
+        <InstallGuide />
+
+        <section className="bg-white rounded-2xl shadow-sm p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+              <BookOpen size={21} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold text-gray-800">
+                {t('settings.guideTitle')}
+              </h2>
+              <p className="text-sm text-gray-500 mt-2 leading-6">
+                {t('settings.guideBody')}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setShowOnboarding(true)}
+                className="mt-4 w-full rounded-xl bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-700 active:bg-cyan-100"
+              >
+                {t('settings.openGuide')}
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm p-5">

@@ -23,6 +23,7 @@ import { canEditTrip } from '../lib/tripCloud'
 import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
+import FormSection from '../components/FormSection'
 
 const emptyHotel = {
   name: '',
@@ -1104,6 +1105,7 @@ export default function Hotels() {
   const [importMessage, setImportMessage] = useState('')
   const [importFileName, setImportFileName] = useState('')
   const [isImportingPdf, setIsImportingPdf] = useState(false)
+  const [optionalDetailsOpen, setOptionalDetailsOpen] = useState(false)
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
   const userCanEdit = canEditTrip(selectedTrip, user)
@@ -1141,6 +1143,7 @@ export default function Hotels() {
       checkOut: selectedTrip.endDate || '',
     })
 
+    setOptionalDetailsOpen(false)
     setError('')
     resetImportTools()
     setModal({
@@ -1168,6 +1171,7 @@ export default function Hotels() {
       totalCost: getHotelTotal(hotel),
     })
 
+    setOptionalDetailsOpen(false)
     setError('')
     resetImportTools()
     setModal({
@@ -1180,6 +1184,7 @@ export default function Hotels() {
   const closeModal = () => {
     setModal(null)
     setForm(emptyHotel)
+    setOptionalDetailsOpen(false)
     setError('')
     resetImportTools()
   }
@@ -1222,6 +1227,7 @@ export default function Hotels() {
       return updatedForm
     })
 
+    setOptionalDetailsOpen(true)
     setImportMessage(t('hotels.imported'))
   }
 
@@ -1841,144 +1847,168 @@ export default function Hotels() {
             )}
           </div>
 
-          <InputField
-            label={t('hotels.hotelName')}
-            value={form.name}
-            onChange={updateForm('name')}
-            placeholder="Hilton Tokyo Bay"
-          />
-
-          <InputField
-            label={t('hotels.area')}
-            value={form.area}
-            onChange={updateForm('area')}
-            placeholder="Shinjuku, Tokyo"
-          />
-
-          <div className="grid grid-cols-2 gap-3">
+          <FormSection
+            title={t('form.requiredInfo')}
+            description={t('hotels.requiredSectionBody')}
+            defaultOpen
+            tone="purple"
+          >
             <InputField
-              label={t('hotels.checkInDate')}
-              type="date"
-              value={form.checkIn}
-              onChange={updateForm('checkIn')}
+              label={t('hotels.hotelName')}
+              value={form.name}
+              onChange={updateForm('name')}
+              placeholder="Hilton Tokyo Bay"
             />
 
             <InputField
-              label={t('hotels.checkOutDate')}
-              type="date"
-              value={form.checkOut}
-              onChange={updateForm('checkOut')}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('hotels.numberRooms')}
-              type="number"
-              value={form.rooms}
-              onChange={updateForm('rooms')}
-              placeholder="1"
+              label={t('hotels.area')}
+              value={form.area}
+              onChange={updateForm('area')}
+              placeholder="Shinjuku, Tokyo"
             />
 
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('hotels.checkInDate')}
+                type="date"
+                value={form.checkIn}
+                onChange={updateForm('checkIn')}
+              />
+
+              <InputField
+                label={t('hotels.checkOutDate')}
+                type="date"
+                value={form.checkOut}
+                onChange={updateForm('checkOut')}
+              />
+            </div>
+          </FormSection>
+
+          <FormSection
+            title={t('hotels.stayCostSection')}
+            description={t('hotels.stayCostSectionBody')}
+            defaultOpen
+            tone="purple"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('hotels.numberRooms')}
+                type="number"
+                value={form.rooms}
+                onChange={updateForm('rooms')}
+                placeholder="1"
+              />
+
+              <SelectField
+                label={t('hotels.roomType')}
+                value={form.roomCapacity}
+                onChange={updateForm('roomCapacity')}
+                options={ROOM_CAPACITY_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t('hotels.personRoom', { count: option.value }),
+                }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <SelectField
+                label={t('flights.currency')}
+                value={form.currency}
+                onChange={updateForm('currency')}
+                options={CURRENCY_OPTIONS}
+              />
+
+              <InputField
+                label={t('hotels.priceNight')}
+                type="number"
+                value={form.pricePerNight}
+                onChange={updateForm('pricePerNight')}
+                placeholder="0"
+              />
+            </div>
+
+            <div className="mb-4 rounded-xl bg-purple-50 px-4 py-3">
+              <p className="text-xs font-medium text-purple-600 mb-1">
+                {t('hotels.autoTotal')}
+              </p>
+              <p className="text-sm font-semibold text-purple-800">
+                {formatMoney(getHotelTotal(form), form.currency)}
+              </p>
+              <p className="text-xs text-purple-500 mt-1">
+                {t('hotels.autoTotalBody')}
+              </p>
+            </div>
+          </FormSection>
+
+          <FormSection
+            title={t('form.optionalDetails')}
+            description={t('hotels.optionalSectionBody')}
+            open={optionalDetailsOpen}
+            onOpenChange={setOptionalDetailsOpen}
+            tone="gray"
+          >
             <SelectField
-              label={t('hotels.roomType')}
-              value={form.roomCapacity}
-              onChange={updateForm('roomCapacity')}
-              options={ROOM_CAPACITY_OPTIONS.map((option) => ({
+              label={t('hotels.bookingStatus')}
+              value={form.status}
+              onChange={updateForm('status')}
+              options={STATUS_OPTIONS.map((option) => ({
                 ...option,
-                label: t('hotels.personRoom', { count: option.value }),
+                label: t(`common.${option.value}`),
               }))}
             />
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <SelectField
-              label={t('flights.currency')}
-              value={form.currency}
-              onChange={updateForm('currency')}
-              options={CURRENCY_OPTIONS}
+            <InputField
+              label={t('hotels.bookingRef')}
+              value={form.bookingRef}
+              onChange={updateForm('bookingRef')}
+              placeholder="Booking.com / Expedia / Hotel confirmation number"
             />
 
             <InputField
-              label={t('hotels.priceNight')}
-              type="number"
-              value={form.pricePerNight}
-              onChange={updateForm('pricePerNight')}
-              placeholder="0"
+              label={t('timeline.mapsLink')}
+              value={form.mapUrl}
+              onChange={updateForm('mapUrl')}
+              placeholder="https://maps.google.com/..."
             />
+
+            <InputField
+              label={t('hotels.wifiInfo')}
+              value={form.wifi}
+              onChange={updateForm('wifi')}
+              placeholder="Network name / password"
+            />
+
+            <InputField
+              label={t('hotels.phone')}
+              value={form.phone}
+              onChange={updateForm('phone')}
+              placeholder="+81..."
+            />
+
+            <InputField
+              label={t('hotels.address')}
+              value={form.address}
+              onChange={updateForm('address')}
+              placeholder="Full hotel address"
+            />
+
+            <InputField
+              label={t('timeline.notes')}
+              value={form.notes}
+              onChange={updateForm('notes')}
+              placeholder="Check-in reminder, parking, breakfast, luggage storage..."
+            />
+          </FormSection>
+
+          <div className="sticky bottom-0 -mx-5 mt-2 border-t border-gray-100 bg-white px-5 py-4">
+            <button
+              type="button"
+              onClick={save}
+              className="w-full bg-purple-500 text-white rounded-xl py-3 font-semibold text-sm shadow-sm"
+            >
+              {modal.mode === 'add' ? t('hotels.saveBooking') : t('common.saveChanges')}
+            </button>
           </div>
-
-          <div className="mb-4 rounded-xl bg-purple-50 px-4 py-3">
-            <p className="text-xs font-medium text-purple-600 mb-1">
-              {t('hotels.autoTotal')}
-            </p>
-            <p className="text-sm font-semibold text-purple-800">
-              {formatMoney(getHotelTotal(form), form.currency)}
-            </p>
-            <p className="text-xs text-purple-500 mt-1">
-              {t('hotels.autoTotalBody')}
-            </p>
-          </div>
-
-          <SelectField
-            label={t('hotels.bookingStatus')}
-            value={form.status}
-            onChange={updateForm('status')}
-            options={STATUS_OPTIONS.map((option) => ({
-              ...option,
-              label: t(`common.${option.value}`),
-            }))}
-          />
-
-          <InputField
-            label={t('hotels.bookingRef')}
-            value={form.bookingRef}
-            onChange={updateForm('bookingRef')}
-            placeholder="Booking.com / Expedia / Hotel confirmation number"
-          />
-
-          <InputField
-            label={t('timeline.mapsLink')}
-            value={form.mapUrl}
-            onChange={updateForm('mapUrl')}
-            placeholder="https://maps.google.com/..."
-          />
-
-          <InputField
-            label={t('hotels.wifiInfo')}
-            value={form.wifi}
-            onChange={updateForm('wifi')}
-            placeholder="Network name / password"
-          />
-
-          <InputField
-            label={t('hotels.phone')}
-            value={form.phone}
-            onChange={updateForm('phone')}
-            placeholder="+81..."
-          />
-
-          <InputField
-            label={t('hotels.address')}
-            value={form.address}
-            onChange={updateForm('address')}
-            placeholder="Full hotel address"
-          />
-
-          <InputField
-            label={t('timeline.notes')}
-            value={form.notes}
-            onChange={updateForm('notes')}
-            placeholder="Check-in reminder, parking, breakfast, luggage storage..."
-          />
-
-          <button
-            type="button"
-            onClick={save}
-            className="w-full bg-purple-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
-          >
-            {modal.mode === 'add' ? t('hotels.saveBooking') : t('common.saveChanges')}
-          </button>
         </EditModal>
       )}
     </div>

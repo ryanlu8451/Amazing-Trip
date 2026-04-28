@@ -18,6 +18,7 @@ import { canEditTrip } from '../lib/tripCloud'
 import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
+import FormSection from '../components/FormSection'
 
 const CATEGORY_OPTIONS = [
   { value: 'flight', label: '✈️ Flights', emoji: '✈️', defaultLabel: 'Flights' },
@@ -1133,13 +1134,15 @@ export default function Budget() {
             placeholder="0"
           />
 
-          <button
-            type="button"
-            onClick={saveSettings}
-            className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
-          >
-            {t('budget.saveBudget')}
-          </button>
+          <div className="sticky bottom-0 -mx-5 mt-2 border-t border-gray-100 bg-white px-5 py-4">
+            <button
+              type="button"
+              onClick={saveSettings}
+              className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm shadow-sm"
+            >
+              {t('budget.saveBudget')}
+            </button>
+          </div>
         </EditModal>
       )}
 
@@ -1154,66 +1157,81 @@ export default function Budget() {
             </div>
           )}
 
-          <SelectField
-            label={t('budget.category')}
-            value={allocationForm.category}
-            onChange={(value) => updateCategoryForm('allocation', value)}
-            options={CATEGORY_OPTIONS.map((item) => ({
-              value: item.value,
-              label: `${item.emoji} ${t(`budget.category.${item.value}`)}`,
-            }))}
-          />
+          <FormSection
+            title={t('form.requiredInfo')}
+            description={t('budget.allocationRequiredBody')}
+            defaultOpen
+            tone="green"
+          >
+            <SelectField
+              label={t('budget.category')}
+              value={allocationForm.category}
+              onChange={(value) => updateCategoryForm('allocation', value)}
+              options={CATEGORY_OPTIONS.map((item) => ({
+                value: item.value,
+                label: `${item.emoji} ${t(`budget.category.${item.value}`)}`,
+              }))}
+            />
 
-          {allocationForm.category === 'custom' && (
-            <>
-              <InputField
-                label={t('budget.customEmoji')}
-                value={allocationForm.emoji}
-                onChange={(value) =>
-                  setAllocationForm((form) => ({ ...form, emoji: value }))
-                }
-                placeholder="✨"
-              />
+            <InputField
+              label={t('budget.allocatedAmount')}
+              type="number"
+              value={allocationForm.amount}
+              onChange={(value) =>
+                setAllocationForm((form) => ({ ...form, amount: value }))
+              }
+              placeholder="0"
+            />
+          </FormSection>
 
+          <FormSection
+            title={t('form.optionalDetails')}
+            description={t('budget.allocationOptionalBody')}
+            tone="gray"
+          >
+            {allocationForm.category === 'custom' && (
+              <>
+                <InputField
+                  label={t('budget.customEmoji')}
+                  value={allocationForm.emoji}
+                  onChange={(value) =>
+                    setAllocationForm((form) => ({ ...form, emoji: value }))
+                  }
+                  placeholder="✨"
+                />
+
+                <InputField
+                  label={t('budget.customCategory')}
+                  value={allocationForm.label}
+                  onChange={(value) =>
+                    setAllocationForm((form) => ({ ...form, label: value }))
+                  }
+                  placeholder="Example: Souvenirs"
+                />
+              </>
+            )}
+
+            {allocationForm.category !== 'custom' && (
               <InputField
-                label={t('budget.customCategory')}
+                label={t('budget.categoryName')}
                 value={allocationForm.label}
                 onChange={(value) =>
                   setAllocationForm((form) => ({ ...form, label: value }))
                 }
-                placeholder="Example: Souvenirs"
+                placeholder="Category name"
               />
-            </>
-          )}
+            )}
+          </FormSection>
 
-          {allocationForm.category !== 'custom' && (
-            <InputField
-              label={t('budget.categoryName')}
-              value={allocationForm.label}
-              onChange={(value) =>
-                setAllocationForm((form) => ({ ...form, label: value }))
-              }
-              placeholder="Category name"
-            />
-          )}
-
-          <InputField
-            label={t('budget.allocatedAmount')}
-            type="number"
-            value={allocationForm.amount}
-            onChange={(value) =>
-              setAllocationForm((form) => ({ ...form, amount: value }))
-            }
-            placeholder="0"
-          />
-
-          <button
-            type="button"
-            onClick={saveAllocation}
-            className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
-          >
-            {allocationModal.mode === 'add' ? t('budget.saveAllocation') : t('common.saveChanges')}
-          </button>
+          <div className="sticky bottom-0 -mx-5 mt-2 border-t border-gray-100 bg-white px-5 py-4">
+            <button
+              type="button"
+              onClick={saveAllocation}
+              className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm shadow-sm"
+            >
+              {allocationModal.mode === 'add' ? t('budget.saveAllocation') : t('common.saveChanges')}
+            </button>
+          </div>
         </EditModal>
       )}
 
@@ -1228,87 +1246,102 @@ export default function Budget() {
             </div>
           )}
 
-          <SelectField
-            label={t('budget.category')}
-            value={expenseForm.category}
-            onChange={(value) => updateCategoryForm('expense', value)}
-            options={CATEGORY_OPTIONS.map((item) => ({
-              value: item.value,
-              label: `${item.emoji} ${t(`budget.category.${item.value}`)}`,
-            }))}
-          />
+          <FormSection
+            title={t('form.requiredInfo')}
+            description={t('budget.expenseRequiredBody')}
+            defaultOpen
+            tone="green"
+          >
+            <SelectField
+              label={t('budget.category')}
+              value={expenseForm.category}
+              onChange={(value) => updateCategoryForm('expense', value)}
+              options={CATEGORY_OPTIONS.map((item) => ({
+                value: item.value,
+                label: `${item.emoji} ${t(`budget.category.${item.value}`)}`,
+              }))}
+            />
 
-          {expenseForm.category === 'custom' && (
-            <>
-              <InputField
-                label={t('budget.customEmoji')}
-                value={expenseForm.emoji}
-                onChange={(value) =>
-                  setExpenseForm((form) => ({ ...form, emoji: value }))
-                }
-                placeholder="✨"
-              />
+            <InputField
+              label={t('budget.amount')}
+              type="number"
+              value={expenseForm.amount}
+              onChange={(value) =>
+                setExpenseForm((form) => ({ ...form, amount: value }))
+              }
+              placeholder="0"
+            />
 
+            <SelectField
+              label={t('budget.paymentStatus')}
+              value={expenseForm.paymentStatus}
+              onChange={(value) =>
+                setExpenseForm((form) => ({ ...form, paymentStatus: value }))
+              }
+              options={PAYMENT_STATUS_OPTIONS.map((option) => ({
+                ...option,
+                label: option.value === 'paid' ? t('budget.paid') : t('common.pending'),
+              }))}
+            />
+          </FormSection>
+
+          <FormSection
+            title={t('form.optionalDetails')}
+            description={t('budget.expenseOptionalBody')}
+            tone="gray"
+          >
+            {expenseForm.category === 'custom' && (
+              <>
+                <InputField
+                  label={t('budget.customEmoji')}
+                  value={expenseForm.emoji}
+                  onChange={(value) =>
+                    setExpenseForm((form) => ({ ...form, emoji: value }))
+                  }
+                  placeholder="✨"
+                />
+
+                <InputField
+                  label={t('budget.customCategory')}
+                  value={expenseForm.label}
+                  onChange={(value) =>
+                    setExpenseForm((form) => ({ ...form, label: value }))
+                  }
+                  placeholder="Example: Souvenirs"
+                />
+              </>
+            )}
+
+            {expenseForm.category !== 'custom' && (
               <InputField
-                label={t('budget.customCategory')}
+                label={t('budget.expenseName')}
                 value={expenseForm.label}
                 onChange={(value) =>
                   setExpenseForm((form) => ({ ...form, label: value }))
                 }
-                placeholder="Example: Souvenirs"
+                placeholder="Expense name"
               />
-            </>
-          )}
+            )}
 
-          {expenseForm.category !== 'custom' && (
             <InputField
-              label={t('budget.expenseName')}
-              value={expenseForm.label}
+              label={t('budget.note')}
+              value={expenseForm.note}
               onChange={(value) =>
-                setExpenseForm((form) => ({ ...form, label: value }))
+                setExpenseForm((form) => ({ ...form, note: value }))
               }
-              placeholder="Expense name"
+              placeholder="Optional note"
             />
-          )}
+          </FormSection>
 
-          <InputField
-            label={t('budget.amount')}
-            type="number"
-            value={expenseForm.amount}
-            onChange={(value) =>
-              setExpenseForm((form) => ({ ...form, amount: value }))
-            }
-            placeholder="0"
-          />
-
-          <SelectField
-            label={t('budget.paymentStatus')}
-            value={expenseForm.paymentStatus}
-            onChange={(value) =>
-              setExpenseForm((form) => ({ ...form, paymentStatus: value }))
-            }
-            options={PAYMENT_STATUS_OPTIONS.map((option) => ({
-              ...option,
-              label: option.value === 'paid' ? t('budget.paid') : t('common.pending'),
-            }))}
-          />
-
-          <InputField
-            label={t('budget.note')}
-            value={expenseForm.note}
-            onChange={(value) =>
-              setExpenseForm((form) => ({ ...form, note: value }))
-            }
-            placeholder="Optional note"
-          />
-
-          <button
-            type="button"
-            onClick={saveExpense}
-            className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
-          >
-            {expenseModal.mode === 'add' ? t('budget.saveExpense') : t('common.saveChanges')}
-          </button>
+          <div className="sticky bottom-0 -mx-5 mt-2 border-t border-gray-100 bg-white px-5 py-4">
+            <button
+              type="button"
+              onClick={saveExpense}
+              className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm shadow-sm"
+            >
+              {expenseModal.mode === 'add' ? t('budget.saveExpense') : t('common.saveChanges')}
+            </button>
+          </div>
         </EditModal>
       )}
 
@@ -1370,13 +1403,15 @@ export default function Budget() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={saveSourceEditor}
-            className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
-          >
-            {t('budget.saveImported')}
-          </button>
+          <div className="sticky bottom-0 -mx-5 mt-2 border-t border-gray-100 bg-white px-5 py-4">
+            <button
+              type="button"
+              onClick={saveSourceEditor}
+              className="w-full bg-green-500 text-white rounded-xl py-3 font-semibold text-sm shadow-sm"
+            >
+              {t('budget.saveImported')}
+            </button>
+          </div>
         </EditModal>
       )}
     </div>

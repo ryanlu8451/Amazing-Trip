@@ -27,6 +27,7 @@ import { canEditTrip } from '../lib/tripCloud'
 import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
+import FormSection from '../components/FormSection'
 
 const emptyFlight = {
   direction: 'outbound',
@@ -1064,6 +1065,7 @@ export default function Flights() {
   const [importMessage, setImportMessage] = useState('')
   const [importFileName, setImportFileName] = useState('')
   const [isImportingPdf, setIsImportingPdf] = useState(false)
+  const [optionalDetailsOpen, setOptionalDetailsOpen] = useState(false)
 
   const selectedTrip = trips.find((trip) => trip.id === activeTripId) || trips[0] || null
   const userCanEdit = canEditTrip(selectedTrip, user)
@@ -1095,6 +1097,7 @@ export default function Flights() {
 
     setActiveTrip(selectedTrip.id)
     setForm(emptyFlight)
+    setOptionalDetailsOpen(false)
     setError('')
     resetImportTools()
     setModal({
@@ -1124,6 +1127,7 @@ export default function Flights() {
       ...normalizedFlight,
       duration: getFlightDuration(normalizedFlight),
     })
+    setOptionalDetailsOpen(false)
     setError('')
     resetImportTools()
     setModal({
@@ -1137,6 +1141,7 @@ export default function Flights() {
   const closeModal = () => {
     setModal(null)
     setForm(emptyFlight)
+    setOptionalDetailsOpen(false)
     setError('')
     resetImportTools()
   }
@@ -1199,6 +1204,7 @@ export default function Flights() {
       return updatedForm
     })
 
+    setOptionalDetailsOpen(true)
     setImportMessage(t('flights.imported'))
   }
 
@@ -1983,190 +1989,207 @@ export default function Flights() {
             )}
           </div>
 
-          <SelectField
-            label={t('flights.direction')}
-            value={form.direction}
-            onChange={updateForm('direction')}
-            options={DIRECTION_OPTIONS.map((option) => ({
-              ...option,
-              label: t(`flights.direction.${option.value}`),
-            }))}
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('flights.airline')}
-              value={form.airline}
-              onChange={updateForm('airline')}
-              placeholder="Air Canada"
-            />
-
-            <InputField
-              label={t('flights.flightNumber')}
-              value={form.code}
-              onChange={updateForm('code')}
-              placeholder="AC123"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('flights.fromCity')}
-              value={form.fromCity}
-              onChange={updateForm('fromCity')}
-              placeholder="Toronto"
-            />
-
-            <InputField
-              label={t('flights.fromAirport')}
-              value={form.fromAirport}
-              onChange={updateForm('fromAirport')}
-              placeholder="YYZ"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('flights.toCity')}
-              value={form.toCity}
-              onChange={updateForm('toCity')}
-              placeholder="Tokyo"
-            />
-
-            <InputField
-              label={t('flights.toAirport')}
-              value={form.toAirport}
-              onChange={updateForm('toAirport')}
-              placeholder="NRT"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('flights.departureDate')}
-              type="date"
-              value={form.date}
-              onChange={updateForm('date')}
-            />
-
-            <InputField
-              label={t('flights.arrivalDate')}
-              type="date"
-              value={form.arrDate}
-              onChange={updateForm('arrDate')}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('flights.departureTime')}
-              type="time"
-              value={form.depTime}
-              onChange={updateForm('depTime')}
-            />
-
-            <InputField
-              label={t('flights.arrivalTime')}
-              type="time"
-              value={form.arrTime}
-              onChange={updateForm('arrTime')}
-            />
-          </div>
-
-          <div className="mb-4 rounded-xl bg-blue-50 px-4 py-3">
-            <p className="text-xs font-medium text-blue-600 mb-1">
-              {t('flights.autoDurationTitle')}
-            </p>
-            <p className="text-sm font-semibold text-blue-800">
-              {form.duration || t('flights.durationHint')}
-            </p>
-            <p className="text-xs text-blue-500 mt-1">
-              {t('flights.durationBody')}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <SelectField
-              label={t('flights.currency')}
-              value={form.currency}
-              onChange={updateForm('currency')}
-              options={CURRENCY_OPTIONS}
-            />
-
-            <InputField
-              label={t('flights.flightCost')}
-              type="number"
-              value={form.price}
-              onChange={updateForm('price')}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <InputField
-              label={t('flights.terminal')}
-              value={form.terminal}
-              onChange={updateForm('terminal')}
-              placeholder="Terminal 1"
-            />
-
-            <InputField
-              label={t('flights.gate')}
-              value={form.gate}
-              onChange={updateForm('gate')}
-              placeholder="A12"
-            />
-          </div>
-
-          <SelectField
-            label={t('flights.seatClass')}
-            value={form.seat}
-            onChange={updateForm('seat')}
-            options={SEAT_OPTIONS.map((option) => {
-              const seatKey = {
-                Economy: 'economy',
-                'Premium Economy': 'premium',
-                Business: 'business',
-                'First Class': 'first',
-              }[option.value]
-              return {
-                ...option,
-                label: t(`flights.seat.${seatKey}`),
-              }
-            })}
-          />
-
-          <InputField
-            label={t('flights.bookingRef')}
-            value={form.bookingRef}
-            onChange={updateForm('bookingRef')}
-            placeholder="ABC123"
-          />
-
-          <SelectField
-            label={t('flights.status')}
-            value={form.status}
-            onChange={updateForm('status')}
-            options={STATUS_OPTIONS.map((option) => ({
-              ...option,
-              label: t(`common.${option.value}`),
-            }))}
-          />
-
-          <InputField
-            label={t('flights.note')}
-            value={form.note}
-            onChange={updateForm('note')}
-            placeholder="Baggage, check-in reminder, meal request..."
-          />
-
-          <button
-            type="button"
-            onClick={save}
-            className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm mt-2"
+          <FormSection
+            title={t('form.requiredInfo')}
+            description={t('flights.requiredSectionBody')}
+            defaultOpen
+            tone="blue"
           >
-            {modal.mode === 'add' ? t('flights.saveBooking') : t('common.saveChanges')}
-          </button>
+            <SelectField
+              label={t('flights.direction')}
+              value={form.direction}
+              onChange={updateForm('direction')}
+              options={DIRECTION_OPTIONS.map((option) => ({
+                ...option,
+                label: t(`flights.direction.${option.value}`),
+              }))}
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('flights.airline')}
+                value={form.airline}
+                onChange={updateForm('airline')}
+                placeholder="Air Canada"
+              />
+
+              <InputField
+                label={t('flights.flightNumber')}
+                value={form.code}
+                onChange={updateForm('code')}
+                placeholder="AC123"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('flights.fromCity')}
+                value={form.fromCity}
+                onChange={updateForm('fromCity')}
+                placeholder="Toronto"
+              />
+
+              <InputField
+                label={t('flights.fromAirport')}
+                value={form.fromAirport}
+                onChange={updateForm('fromAirport')}
+                placeholder="YYZ"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('flights.toCity')}
+                value={form.toCity}
+                onChange={updateForm('toCity')}
+                placeholder="Tokyo"
+              />
+
+              <InputField
+                label={t('flights.toAirport')}
+                value={form.toAirport}
+                onChange={updateForm('toAirport')}
+                placeholder="NRT"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('flights.departureDate')}
+                type="date"
+                value={form.date}
+                onChange={updateForm('date')}
+              />
+
+              <InputField
+                label={t('flights.arrivalDate')}
+                type="date"
+                value={form.arrDate}
+                onChange={updateForm('arrDate')}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('flights.departureTime')}
+                type="time"
+                value={form.depTime}
+                onChange={updateForm('depTime')}
+              />
+
+              <InputField
+                label={t('flights.arrivalTime')}
+                type="time"
+                value={form.arrTime}
+                onChange={updateForm('arrTime')}
+              />
+            </div>
+
+            <div className="mb-4 rounded-xl bg-blue-50 px-4 py-3">
+              <p className="text-xs font-medium text-blue-600 mb-1">
+                {t('flights.autoDurationTitle')}
+              </p>
+              <p className="text-sm font-semibold text-blue-800">
+                {form.duration || t('flights.durationHint')}
+              </p>
+              <p className="text-xs text-blue-500 mt-1">
+                {t('flights.durationBody')}
+              </p>
+            </div>
+          </FormSection>
+
+          <FormSection
+            title={t('form.optionalDetails')}
+            description={t('flights.optionalSectionBody')}
+            open={optionalDetailsOpen}
+            onOpenChange={setOptionalDetailsOpen}
+            tone="gray"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <SelectField
+                label={t('flights.currency')}
+                value={form.currency}
+                onChange={updateForm('currency')}
+                options={CURRENCY_OPTIONS}
+              />
+
+              <InputField
+                label={t('flights.flightCost')}
+                type="number"
+                value={form.price}
+                onChange={updateForm('price')}
+                placeholder="0"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label={t('flights.terminal')}
+                value={form.terminal}
+                onChange={updateForm('terminal')}
+                placeholder="Terminal 1"
+              />
+
+              <InputField
+                label={t('flights.gate')}
+                value={form.gate}
+                onChange={updateForm('gate')}
+                placeholder="A12"
+              />
+            </div>
+
+            <SelectField
+              label={t('flights.seatClass')}
+              value={form.seat}
+              onChange={updateForm('seat')}
+              options={SEAT_OPTIONS.map((option) => {
+                const seatKey = {
+                  Economy: 'economy',
+                  'Premium Economy': 'premium',
+                  Business: 'business',
+                  'First Class': 'first',
+                }[option.value]
+                return {
+                  ...option,
+                  label: t(`flights.seat.${seatKey}`),
+                }
+              })}
+            />
+
+            <InputField
+              label={t('flights.bookingRef')}
+              value={form.bookingRef}
+              onChange={updateForm('bookingRef')}
+              placeholder="ABC123"
+            />
+
+            <SelectField
+              label={t('flights.status')}
+              value={form.status}
+              onChange={updateForm('status')}
+              options={STATUS_OPTIONS.map((option) => ({
+                ...option,
+                label: t(`common.${option.value}`),
+              }))}
+            />
+
+            <InputField
+              label={t('flights.note')}
+              value={form.note}
+              onChange={updateForm('note')}
+              placeholder="Baggage, check-in reminder, meal request..."
+            />
+          </FormSection>
+
+          <div className="sticky bottom-0 -mx-5 mt-2 border-t border-gray-100 bg-white px-5 py-4">
+            <button
+              type="button"
+              onClick={save}
+              className="w-full bg-blue-500 text-white rounded-xl py-3 font-semibold text-sm shadow-sm"
+            >
+              {modal.mode === 'add' ? t('flights.saveBooking') : t('common.saveChanges')}
+            </button>
+          </div>
         </EditModal>
       )}
     </div>

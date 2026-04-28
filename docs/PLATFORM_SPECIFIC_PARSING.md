@@ -2,6 +2,8 @@
 
 更新日期：2026-04-27  
 功能完成狀態：✅ 完成並通過測試
+目前 QA 版本：1.0.0  
+版本紀錄：`docs/RELEASE_NOTES.md`
 
 ## 概述
 
@@ -319,6 +321,35 @@ Flights:
 | 版本 | 日期 | 變更 |
 |------|------|------|
 | 1.0 | 2026-04-27 | 初始發佈 - Airbnb、Agoda、Booking.com 及主流航空公司支持 |
+| 1.1 | 2026-04-28 | 補充 app-like release readiness；新增 onboarding / install guide 狀態 |
+
+---
+
+## 8. App-like Release Readiness 關聯
+
+平台特化解析目前已納入 Public Beta 的 app-ready demo flow：
+
+1. 使用者登入 Amazing Trip。
+2. First-run onboarding 介紹建立旅程、匯入訂單、邀請成員、手機安裝。
+3. 使用者在 Flights / Hotels 貼上確認信文字或選擇 PDF。
+4. 系統自動辨識平台 / 航空公司並填入可辨識欄位。
+5. 使用者 review 後儲存，資料可進一步用於 Budget 與 Timeline。
+
+與上架型產品體驗相關的已完成項目：
+
+- Login / Settings 皆提供 mobile install guide。
+- Onboarding 已明確介紹 booking import 的價值。
+- Production build 已通過，且無 Vite 500 kB chunk warning。
+- 導入解析在瀏覽器本機執行，不需上傳 PDF 或確認信內容到第三方服務。
+
+上線前仍需補測：
+
+- iPhone Safari / Android Chrome 上傳 PDF 與 paste text 行為。
+- Mobile viewport 下匯入後 review 是否易用；目前 Flights / Hotels / Budget 已完成折疊式長表單簡化與 sticky save footer。
+- Flights / Hotels 匯入後 optional details 已自動展開，方便檢查費用、訂位代號、航廈 / 登機門、地址與電話等欄位。
+- 最後上線前仍需用 iPhone Safari / Android Chrome 實測 PDF 選擇、文字貼上、鍵盤輸入與儲存流程。
+- 真實航空公司 / 訂房平台確認信回歸樣本。
+- 匯入失敗或部分填入時的錯誤恢復訊息。
 
 ---
 

@@ -10,7 +10,10 @@ export const useSettingsStore = create(
   persist(
     (set) => ({
       language: 'en',
+      hasSeenOnboarding: false,
       setLanguage: (language) => set({ language }),
+      completeOnboarding: () => set({ hasSeenOnboarding: true }),
+      resetOnboarding: () => set({ hasSeenOnboarding: false }),
     }),
     {
       name: 'amazing-trip-settings',
