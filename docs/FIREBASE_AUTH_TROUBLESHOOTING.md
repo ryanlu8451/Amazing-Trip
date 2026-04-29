@@ -87,7 +87,7 @@ npm run dev
 1. 在手機上打開：`https://amazing-trip-f5732.web.app`
 2. 使用 **Safari**（iPhone）或 **Chrome**（Android）
 3. 點擊「Continue with Google」
-4. 應該看到 Google 登入彈窗
+4. 應該看到 Google 登入彈窗；若瀏覽器阻擋彈窗，App 會改用整頁 Google 登入 redirect
 
 ---
 
