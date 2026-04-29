@@ -529,6 +529,8 @@ export const useTripStore = create(
           const trips = persistedState.trips.filter((trip) => !isLegacyDemoTrip(trip))
           return {
             ...persistedState,
+            cloudReady: false,
+            cloudError: '',
             ...getStateFromTrips(trips, persistedState.activeTripId),
           }
         }
@@ -562,6 +564,8 @@ export const useTripStore = create(
         return {
           trips: [migratedTrip],
           activeTripId: migratedTrip.id,
+          cloudReady: false,
+          cloudError: '',
           ...getActiveTripState(migratedTrip),
         }
       },
@@ -580,9 +584,21 @@ export const useTripStore = create(
         return {
           ...mergedState,
           trips,
+          cloudReady: false,
+          cloudError: '',
           ...getActiveTripState(activeTrip),
         }
       },
+      partialize: (state) => ({
+        trips: state.trips,
+        activeTripId: state.activeTripId,
+        trip: state.trip,
+        flights: state.flights,
+        hotels: state.hotels,
+        budget: state.budget,
+        timeline: state.timeline,
+        tips: state.tips,
+      }),
     }
   )
 )
