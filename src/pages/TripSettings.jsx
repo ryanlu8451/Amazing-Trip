@@ -25,7 +25,6 @@ export default function TripSettings() {
     activeTripId,
     trip,
     updateTrip,
-    cloudError,
     clearCloudError,
   } = useTripStore()
   const { user } = useAuthStore()
@@ -255,12 +254,11 @@ export default function TripSettings() {
             <button
               type="button"
               onClick={() => selectTripType('solo')}
-              disabled={!userCanManageMembers}
               className={`rounded-2xl border p-4 text-left ${
                 tripType === 'solo'
                   ? 'border-blue-300 bg-blue-50'
                   : 'border-gray-100 bg-white'
-              } ${userCanManageMembers ? '' : 'cursor-not-allowed opacity-60'}`}
+              }`}
             >
               <div className="flex items-start gap-3">
                 <div className="bg-blue-100 text-blue-600 rounded-full p-2">
@@ -278,12 +276,11 @@ export default function TripSettings() {
             <button
               type="button"
               onClick={() => selectTripType('group')}
-              disabled={!userCanManageMembers}
               className={`rounded-2xl border p-4 text-left ${
                 tripType === 'group'
                   ? 'border-indigo-300 bg-indigo-50'
                   : 'border-gray-100 bg-white'
-              } ${userCanManageMembers ? '' : 'cursor-not-allowed opacity-60'}`}
+              }`}
             >
               <div className="flex items-start gap-3">
                 <div className="bg-indigo-100 text-indigo-600 rounded-full p-2">
@@ -299,12 +296,6 @@ export default function TripSettings() {
             </button>
           </div>
         </div>
-
-        {cloudError && (
-          <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
-            {cloudError}
-          </div>
-        )}
 
         {!userCanManageMembers && (
           <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4 text-sm text-amber-700">

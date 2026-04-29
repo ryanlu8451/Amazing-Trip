@@ -39,6 +39,20 @@ function sortTripsForDisplay(trips) {
   })
 }
 
+function getComparableTrip(trip) {
+  return Object.fromEntries(
+    Object.entries(trip || {}).filter(([key]) => key !== 'updatedAt')
+  )
+}
+
+function hasTripChanged(currentTrip, previousTrip) {
+  if (!previousTrip) {
+    return true
+  }
+
+  return JSON.stringify(getComparableTrip(currentTrip)) !== JSON.stringify(getComparableTrip(previousTrip))
+}
+
 export function useTripCloudSync(user) {
   const applyingCloudRef = useRef(false)
   const lastTripsRef = useRef([])
@@ -65,7 +79,11 @@ export function useTripCloudSync(user) {
           useTripStore.getState().setTripsFromCloud(cloudSafeTrips)
           lastTripsRef.current = cloudSafeTrips
           applyingCloudRef.current = false
-          await saveTripsIndividually(cloudSafeTrips, user)
+          const saveErrors = await saveTripsIndividually(cloudSafeTrips, user)
+
+          if (saveErrors.length > 0) {
+            console.warn('[Trip Cloud Migration Partial Save]', saveErrors)
+          }
           return
         }
 
@@ -103,30 +121,47 @@ export function useTripCloudSync(user) {
 
       writeTimerRef.current = window.setTimeout(async () => {
         const currentIds = new Set(state.trips.map((trip) => trip.id))
+        const previousTripsById = new Map(lastTripsRef.current.map((trip) => [trip.id, trip]))
         const deletedTripIds = lastTripsRef.current
           .filter((trip) => !currentIds.has(trip.id) && canDeleteTrip(trip, user))
           .map((trip) => trip.id)
         const tripsToSave = state.trips.filter(
-          (trip) => !isLegacyDemoTrip(trip, user) && canSaveTripToCloud(trip, user)
+          (trip) =>
+            !isLegacyDemoTrip(trip, user) &&
+            canSaveTripToCloud(trip, user) &&
+            hasTripChanged(trip, previousTripsById.get(trip.id))
         )
 
         try {
           const saveErrors = await saveTripsIndividually(tripsToSave, user)
           const deleteErrors = await deleteTripsIndividually(deletedTripIds)
+          const activeTripSaveFailed = saveErrors.some(
+            (errorResult) => errorResult.tripId === state.activeTripId
+          )
 
-          if (saveErrors.length > 0 || deleteErrors.length > 0) {
-            throw new Error('Some trip changes could not sync to Firebase.')
+          if (saveErrors.length > 0) {
+            console.warn('[Trip Cloud Save Partial Failure]', saveErrors)
+          }
+
+          if (deleteErrors.length > 0) {
+            console.warn('[Trip Cloud Delete Partial Failure]', deleteErrors)
           }
 
           lastTripsRef.current = state.trips
-          useTripStore.getState().setCloudError('')
+          if (activeTripSaveFailed) {
+            useTripStore.getState().setCloudError(
+              'This trip could not sync to Firebase. Refresh and make sure you are using an account with edit access.'
+            )
+          } else {
+            useTripStore.getState().clearCloudError()
+          }
         } catch (error) {
           console.error('[Trip Cloud Save Error]', {
             code: error.code,
             message: error.message,
           })
           useTripStore.getState().setCloudError(
-            'Some trip changes could not sync to Firebase. Owner-only sharing changes must be made by the trip owner.'
+            'Trip changes could not sync to Firebase. Refresh and make sure this account still has access.'
           )
         }
       }, 500)
@@ -141,16 +176,34 @@ export function useTripCloudSync(user) {
 
 async function saveTripsIndividually(trips, user) {
   const results = await Promise.allSettled(
-    trips.map((trip) => saveTripToCloud(trip, user))
+    trips.map(async (trip) => {
+      await saveTripToCloud(trip, user)
+      return trip.id
+    })
   )
 
-  return results.filter((result) => result.status === 'rejected')
+  return results
+    .map((result, index) => ({
+      status: result.status,
+      tripId: trips[index]?.id,
+      reason: result.status === 'rejected' ? result.reason : undefined,
+    }))
+    .filter((result) => result.status === 'rejected')
 }
 
 async function deleteTripsIndividually(tripIds) {
   const results = await Promise.allSettled(
-    tripIds.map((tripId) => deleteTripFromCloud(tripId))
+    tripIds.map(async (tripId) => {
+      await deleteTripFromCloud(tripId)
+      return tripId
+    })
   )
 
-  return results.filter((result) => result.status === 'rejected')
+  return results
+    .map((result, index) => ({
+      status: result.status,
+      tripId: tripIds[index],
+      reason: result.status === 'rejected' ? result.reason : undefined,
+    }))
+    .filter((result) => result.status === 'rejected')
 }
