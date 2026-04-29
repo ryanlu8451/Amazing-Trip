@@ -222,9 +222,19 @@ export const useTripStore = create(
       },
 
       setCloudError: (message) => {
+        const safeMessage = String(message || '')
+        const deprecatedMessages = [
+          'Some shared trips could not be loaded.',
+          'Some trip changes could not sync to Firebase. Owner-only sharing changes must be made by the trip owner.',
+        ]
+
         set({
           cloudReady: true,
-          cloudError: message,
+          cloudError: deprecatedMessages.some((deprecatedMessage) =>
+            safeMessage.includes(deprecatedMessage)
+          )
+            ? ''
+            : safeMessage,
         })
       },
 

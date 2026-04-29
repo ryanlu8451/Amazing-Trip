@@ -35,6 +35,7 @@ Test URL: https://amazing-trip-f5732.web.app
 - Changed cloud sync to write only changed trips and keep unrelated per-trip permission failures out of Trip Settings QA banners.
 - Kept Trip Settings trip-type controls tappable so permission state is explained by the app instead of appearing unresponsive.
 - Bumped the service worker cache so installed and previously opened QA sessions refresh the latest sync fixes.
+- Added forced service worker handoff reload and deprecated sync-error filtering so old cached QA bundles cannot keep showing removed Trip Settings errors.
 - Removed the legacy Tokyo demo trip from the default product state and filtered that exact demo trip from migrated local/cloud display state.
 - Replaced raw Firebase permission messages with user-safe sync guidance while keeping detailed diagnostics in the console.
 - Rechecked OWASP-aligned controls for access control, authentication, CSP, XSS sinks, secrets exposure, and vulnerable dependencies.

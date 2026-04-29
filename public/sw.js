@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amazing-trip-v6'
+const CACHE_NAME = 'amazing-trip-v7'
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -26,8 +26,17 @@ self.addEventListener('activate', (event) => {
             .map((cacheName) => caches.delete(cacheName))
         )
       )
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'AMAZING_TRIP_UPDATE_READY' })
+          if ('navigate' in client) {
+            client.navigate(client.url)
+          }
+        })
+      })
   )
-  self.clients.claim()
 })
 
 self.addEventListener('fetch', (event) => {
