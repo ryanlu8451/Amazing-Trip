@@ -197,12 +197,27 @@ function normalizeExternalUrl(url) {
   return `https://${cleanedUrl}`
 }
 
+function getGoogleMapsSearchUrl(query) {
+  const cleanedQuery = String(query || '').trim()
+
+  if (!cleanedQuery) {
+    return ''
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanedQuery)}`
+}
+
 function getActivityMapUrl(item) {
   if (item.mapUrl) {
     return normalizeExternalUrl(item.mapUrl)
   }
 
-  return ''
+  const query = [item.location, item.title]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+
+  return getGoogleMapsSearchUrl(query)
 }
 
 function sortTimelineItemsByTime(items) {

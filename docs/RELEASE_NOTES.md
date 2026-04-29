@@ -62,6 +62,7 @@ Test URL: https://amazing-trip-f5732.web.app
 - Local browser PDF parsing; booking content is not sent to third-party parsing services.
 - Import auto-fill requires user review before saving.
 - Flights / Hotels optional details auto-expand after import for easier review.
+- Timeline activities open Google Maps from typed location or activity place names even when no Maps URL is pasted.
 
 ### UX / Polish
 
