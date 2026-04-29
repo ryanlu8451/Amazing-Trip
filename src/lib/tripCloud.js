@@ -109,7 +109,19 @@ export function canDeleteTrip(trip, user) {
   return trip.ownerId === user.uid || normalizeEmail(trip.ownerEmail) === userEmail
 }
 
-export const canManageTripMembers = canDeleteTrip
+export function canManageTripMembers(trip, user) {
+  const userEmail = normalizeEmail(user?.email)
+
+  if (!trip || !user?.uid || !userEmail) {
+    return false
+  }
+
+  if (!trip.ownerId && !trip.ownerEmail) {
+    return true
+  }
+
+  return trip.ownerId === user.uid && normalizeEmail(trip.ownerEmail) === userEmail
+}
 
 export function canSaveTripToCloud(trip, user) {
   if (!trip?.ownerId && !trip?.ownerEmail) {

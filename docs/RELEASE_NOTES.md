@@ -31,6 +31,7 @@ Test URL: https://amazing-trip-f5732.web.app
 - Made cloud sync tolerant of per-trip permission failures so one inaccessible trip no longer blocks the whole app from opening.
 - Stopped persisting transient cloud sync errors in local storage so old desktop QA permission messages do not reappear after the issue is fixed.
 - Treated shared-trip background listener permission failures as non-blocking diagnostics so Trip Settings does not show unrelated shared-trip load errors while the current trip is available.
+- Locked Trip Settings owner-only changes behind the same owner check used by Firestore and only updates local trip settings after cloud save succeeds.
 - Removed the legacy Tokyo demo trip from the default product state and filtered that exact demo trip from migrated local/cloud display state.
 - Replaced raw Firebase permission messages with user-safe sync guidance while keeping detailed diagnostics in the console.
 - Rechecked OWASP-aligned controls for access control, authentication, CSP, XSS sinks, secrets exposure, and vulnerable dependencies.
