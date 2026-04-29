@@ -228,6 +228,13 @@ export const useTripStore = create(
         })
       },
 
+      clearCloudError: () => {
+        set({
+          cloudReady: true,
+          cloudError: '',
+        })
+      },
+
       // Trip management
       addTrip: (tripData) => {
         const newTrip = {

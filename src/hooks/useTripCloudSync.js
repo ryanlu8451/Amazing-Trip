@@ -80,9 +80,7 @@ export function useTripCloudSync(user) {
           code: error.code,
           message: error.message,
         })
-        useTripStore.getState().setCloudError(
-          'Some shared trips could not be loaded. Refresh and make sure you are signed in with an invited Gmail address.'
-        )
+        useTripStore.getState().clearCloudError()
       }
     )
 
