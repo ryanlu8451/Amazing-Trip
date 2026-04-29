@@ -44,11 +44,65 @@ export default function TripSettings() {
     ? `${window.location.origin}/invite/${activeTrip.id}`
     : window.location.origin
 
-  const selectTripType = (nextTripType) => {
-    if (activeTrip && tripType !== nextTripType) {
-      updateTrip({
-        tripType: nextTripType,
+  const getOwnerSafeTripPatch = (extraFields = {}) => {
+    const normalizedOwnerEmail = ownerEmail || normalizeEmail(user?.email)
+    const normalizedUserEmail = normalizeEmail(user?.email)
+    const nextMemberEmails = [
+      ...new Set([
+        normalizedOwnerEmail,
+        normalizedUserEmail,
+        ...memberEmails.map(normalizeEmail),
+        ...(extraFields.memberEmails || []).map(normalizeEmail),
+      ].filter(Boolean)),
+    ]
+    const nextMemberRoles = {
+      ...memberRoles,
+      [normalizedOwnerEmail]: 'owner',
+      ...(extraFields.memberRoles || {}),
+    }
+
+    return {
+      ...extraFields,
+      ownerId: activeTrip?.ownerId || user?.uid || '',
+      ownerEmail: normalizedOwnerEmail,
+      memberEmails: nextMemberEmails,
+      memberRoles: nextMemberRoles,
+    }
+  }
+
+  const saveTripSettings = async (patch, successMessage = '') => {
+    if (!activeTrip) {
+      return false
+    }
+
+    const updatedTrip = {
+      ...activeTrip,
+      ...patch,
+    }
+
+    updateTrip(patch)
+
+    try {
+      await saveTripToCloud(updatedTrip, user)
+      if (successMessage) {
+        setMessage(successMessage)
+      }
+      return true
+    } catch (error) {
+      console.error('[Trip Settings Save Error]', {
+        code: error.code,
+        message: error.message,
       })
+      setMessage(t('tripSettings.saveFailed'))
+      return false
+    }
+  }
+
+  const selectTripType = async (nextTripType) => {
+    if (activeTrip && tripType !== nextTripType) {
+      await saveTripSettings(getOwnerSafeTripPatch({
+        tripType: nextTripType,
+      }))
     }
   }
 
@@ -99,59 +153,42 @@ export default function TripSettings() {
       return
     }
 
-    const nextMemberRoles = {
-      ...memberRoles,
-      [ownerEmail]: 'owner',
-      [invitedEmail]: role,
-    }
-    const nextMemberEmails = [
-      ...new Set([
-        ownerEmail,
-        normalizeEmail(user?.email),
-        ...memberEmails.map(normalizeEmail),
-        invitedEmail,
-      ].filter(Boolean)),
-    ]
-    const updatedTrip = {
-      ...activeTrip,
+    const patch = getOwnerSafeTripPatch({
       tripType: 'group',
-      memberEmails: nextMemberEmails,
-      memberRoles: nextMemberRoles,
-    }
+      memberEmails: [invitedEmail],
+      memberRoles: {
+        [invitedEmail]: role,
+      },
+    })
 
-    updateTrip({
-      tripType: 'group',
-      memberEmails: nextMemberEmails,
-      memberRoles: nextMemberRoles,
-    })
-    saveTripToCloud(updatedTrip, user).catch(() => {
-      setMessage(t('tripSettings.shareSaveWarning'))
-    })
+    const saved = await saveTripSettings(patch)
+
+    if (!saved) {
+      return
+    }
 
     setEmail('')
     setRole('viewer')
     await openNativeShare(invitedEmail)
   }
 
-  const updateMemberRole = (memberEmail, nextRole) => {
+  const updateMemberRole = async (memberEmail, nextRole) => {
     const normalizedMemberEmail = normalizeEmail(memberEmail)
 
     if (!activeTrip || normalizedMemberEmail === ownerEmail || !userCanManageMembers) {
       return
     }
 
-    updateTrip({
+    await saveTripSettings(getOwnerSafeTripPatch({
       memberRoles: {
         ...memberRoles,
         [ownerEmail]: 'owner',
         [normalizedMemberEmail]: nextRole,
       },
-    })
-
-    setMessage(t('tripSettings.roleUpdated', { email: normalizedMemberEmail }))
+    }), t('tripSettings.roleUpdated', { email: normalizedMemberEmail }))
   }
 
-  const removeMember = (memberEmail) => {
+  const removeMember = async (memberEmail) => {
     const normalizedMemberEmail = normalizeEmail(memberEmail)
 
     if (!activeTrip || normalizedMemberEmail === ownerEmail || !userCanManageMembers) {
@@ -168,14 +205,12 @@ export default function TripSettings() {
 
     delete nextRoles[normalizedMemberEmail]
 
-    updateTrip({
+    await saveTripSettings(getOwnerSafeTripPatch({
       memberEmails: memberEmails.filter(
         (currentEmail) => normalizeEmail(currentEmail) !== normalizedMemberEmail
       ),
       memberRoles: nextRoles,
-    })
-
-    setMessage(t('tripSettings.removed', { email: normalizedMemberEmail }))
+    }), t('tripSettings.removed', { email: normalizedMemberEmail }))
   }
 
   return (

@@ -3,6 +3,7 @@ import {
   canDeleteTrip,
   canSaveTripToCloud,
   deleteTripFromCloud,
+  isLegacyDemoTrip,
   saveTripToCloud,
   subscribeToSharedTrips,
 } from '../lib/tripCloud'
@@ -17,10 +18,12 @@ function getCloudSafeTripId(trip, user) {
 }
 
 function prepareLocalTripsForCloud(trips, user) {
-  return trips.map((trip) => ({
-    ...trip,
-    id: getCloudSafeTripId(trip, user),
-  }))
+  return trips
+    .filter((trip) => !isLegacyDemoTrip(trip, user))
+    .map((trip) => ({
+      ...trip,
+      id: getCloudSafeTripId(trip, user),
+    }))
 }
 
 function sortTripsForDisplay(trips) {
@@ -50,28 +53,35 @@ export function useTripCloudSync(user) {
     const unsubscribe = subscribeToSharedTrips(
       user,
       async (cloudTrips) => {
-        const currentTrips = useTripStore.getState().trips
+        const currentTrips = useTripStore.getState().trips.filter(
+          (trip) => !isLegacyDemoTrip(trip, user)
+        )
+        const displayCloudTrips = cloudTrips.filter((trip) => !isLegacyDemoTrip(trip, user))
 
-        if (cloudTrips.length === 0 && currentTrips.length > 0 && !hasMigratedLocalTripsRef.current) {
+        if (displayCloudTrips.length === 0 && currentTrips.length > 0 && !hasMigratedLocalTripsRef.current) {
           hasMigratedLocalTripsRef.current = true
           const cloudSafeTrips = prepareLocalTripsForCloud(currentTrips, user)
           applyingCloudRef.current = true
           useTripStore.getState().setTripsFromCloud(cloudSafeTrips)
           lastTripsRef.current = cloudSafeTrips
           applyingCloudRef.current = false
-          await Promise.all(cloudSafeTrips.map((trip) => saveTripToCloud(trip, user)))
+          await saveTripsIndividually(cloudSafeTrips, user)
           return
         }
 
         applyingCloudRef.current = true
-        const sortedTrips = sortTripsForDisplay(cloudTrips)
+        const sortedTrips = sortTripsForDisplay(displayCloudTrips)
         useTripStore.getState().setTripsFromCloud(sortedTrips)
         lastTripsRef.current = sortedTrips
         applyingCloudRef.current = false
       },
       (error) => {
+        console.error('[Trip Cloud Subscribe Error]', {
+          code: error.code,
+          message: error.message,
+        })
         useTripStore.getState().setCloudError(
-          error.message || 'Could not sync trips from Firebase.'
+          'Some shared trips could not be loaded. Refresh and make sure you are signed in with an invited Gmail address.'
         )
       }
     )
@@ -98,19 +108,27 @@ export function useTripCloudSync(user) {
         const deletedTripIds = lastTripsRef.current
           .filter((trip) => !currentIds.has(trip.id) && canDeleteTrip(trip, user))
           .map((trip) => trip.id)
-        const tripsToSave = state.trips.filter((trip) => canSaveTripToCloud(trip, user))
+        const tripsToSave = state.trips.filter(
+          (trip) => !isLegacyDemoTrip(trip, user) && canSaveTripToCloud(trip, user)
+        )
 
         try {
-          await Promise.all([
-            ...tripsToSave.map((trip) => saveTripToCloud(trip, user)),
-            ...deletedTripIds.map((tripId) => deleteTripFromCloud(tripId)),
-          ])
+          const saveErrors = await saveTripsIndividually(tripsToSave, user)
+          const deleteErrors = await deleteTripsIndividually(deletedTripIds)
+
+          if (saveErrors.length > 0 || deleteErrors.length > 0) {
+            throw new Error('Some trip changes could not sync to Firebase.')
+          }
 
           lastTripsRef.current = state.trips
           useTripStore.getState().setCloudError('')
         } catch (error) {
+          console.error('[Trip Cloud Save Error]', {
+            code: error.code,
+            message: error.message,
+          })
           useTripStore.getState().setCloudError(
-            error.message || 'Could not save trips to Firebase.'
+            'Some trip changes could not sync to Firebase. Owner-only sharing changes must be made by the trip owner.'
           )
         }
       }, 500)
@@ -121,4 +139,20 @@ export function useTripCloudSync(user) {
       unsubscribe()
     }
   }, [user])
+}
+
+async function saveTripsIndividually(trips, user) {
+  const results = await Promise.allSettled(
+    trips.map((trip) => saveTripToCloud(trip, user))
+  )
+
+  return results.filter((result) => result.status === 'rejected')
+}
+
+async function deleteTripsIndividually(tripIds) {
+  const results = await Promise.allSettled(
+    tripIds.map((tripId) => deleteTripFromCloud(tripId))
+  )
+
+  return results.filter((result) => result.status === 'rejected')
 }

@@ -82,8 +82,8 @@ const CURRENCY_OPTIONS = [
   { value: 'EUR', label: 'EUR' },
 ]
 
-const PDFJS_SCRIPT_URL = '/pdfjs/pdf.min.js?v=20260428c'
-const PDFJS_WORKER_URL = '/pdfjs/pdf.worker.min.js?v=20260428c'
+const PDFJS_SCRIPT_URL = '/pdfjs/pdf.min.mjs?v=20260429'
+const PDFJS_WORKER_URL = '/pdfjs/pdf.worker.min.mjs?v=20260429'
 let pdfJsLoadPromise = null
 
 const AIRPORT_TIPS = [
@@ -341,37 +341,16 @@ function configurePdfJsWorker(pdfjsLib) {
 }
 
 function loadPdfJs() {
-  if (window.pdfjsLib) {
-    return Promise.resolve(configurePdfJsWorker(window.pdfjsLib))
-  }
-
   if (pdfJsLoadPromise) {
     return pdfJsLoadPromise
   }
 
-  pdfJsLoadPromise = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector(`script[src="${PDFJS_SCRIPT_URL}"]`)
-
-    if (existingScript) {
-      existingScript.addEventListener('load', () => resolve(configurePdfJsWorker(window.pdfjsLib)))
-      existingScript.addEventListener('error', () => reject(new Error('PDF.js script failed to load.')))
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = PDFJS_SCRIPT_URL
-    script.async = true
-    script.onload = () => {
-      if (window.pdfjsLib) {
-        resolve(configurePdfJsWorker(window.pdfjsLib))
-        return
-      }
-
-      reject(new Error('PDF.js loaded without browser API.'))
-    }
-    script.onerror = () => reject(new Error('PDF.js script failed to load.'))
-    document.head.append(script)
-  })
+  pdfJsLoadPromise = import(/* @vite-ignore */ PDFJS_SCRIPT_URL)
+    .then((pdfjsLib) => configurePdfJsWorker(pdfjsLib))
+    .catch((error) => {
+      pdfJsLoadPromise = null
+      throw error
+    })
 
   return pdfJsLoadPromise
 }

@@ -17,6 +17,15 @@ export function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
 
+export function isLegacyDemoTrip(trip, user) {
+  return Boolean(
+    trip &&
+      (trip.id === 'trip_default' || trip.id === `${user?.uid}_trip_default`) &&
+      trip.name === 'Amazing Trip' &&
+      trip.destination === '日本東京'
+  )
+}
+
 export function normalizeTripForCloud(trip, user) {
   const userEmail = normalizeEmail(user?.email)
   const ownerId = trip.ownerId || user?.uid || ''
@@ -117,14 +126,10 @@ export async function saveTripToCloud(trip, user) {
 
   const cloudTrip = normalizeTripForCloud(trip, user)
 
-  await setDoc(
-    doc(tripsCollection, trip.id),
-    {
-      ...cloudTrip,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  )
+  await setDoc(doc(tripsCollection, trip.id), {
+    ...cloudTrip,
+    updatedAt: serverTimestamp(),
+  })
 }
 
 export async function deleteTripFromCloud(tripId) {

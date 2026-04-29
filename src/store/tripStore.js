@@ -109,15 +109,6 @@ const defaultTips = {
   notes: '記得帶轉接頭！日本插座是兩孔扁型。',
 }
 
-const defaultTrip = {
-  ...defaultTripInfo,
-  flights: defaultFlights,
-  hotels: defaultHotels,
-  budget: defaultBudget,
-  timeline: defaultTimeline,
-  tips: defaultTips,
-}
-
 const emptyTripInfo = {
   id: '',
   name: '',
@@ -197,21 +188,30 @@ function getStateFromTrips(trips, activeTripId) {
   }
 }
 
+function isLegacyDemoTrip(trip) {
+  return Boolean(
+    trip &&
+      trip.id === 'trip_default' &&
+      trip.name === 'Amazing Trip' &&
+      trip.destination === '日本東京'
+  )
+}
+
 export const useTripStore = create(
   persist(
     (set) => ({
-      trips: [defaultTrip],
-      activeTripId: defaultTrip.id,
+      trips: [],
+      activeTripId: '',
       cloudReady: false,
       cloudError: '',
 
       // Backward-compatible active trip data
-      trip: getTripInfo(defaultTrip),
-      flights: defaultFlights,
-      hotels: defaultHotels,
-      budget: defaultBudget,
-      timeline: defaultTimeline,
-      tips: defaultTips,
+      trip: emptyTripInfo,
+      flights: [],
+      hotels: [],
+      budget: [],
+      timeline: [],
+      tips: emptyTips,
 
       setTripsFromCloud: (cloudTrips) => {
         set((state) => ({
@@ -526,10 +526,22 @@ export const useTripStore = create(
 
       migrate: (persistedState) => {
         if (persistedState && persistedState.trips) {
-          return persistedState
+          const trips = persistedState.trips.filter((trip) => !isLegacyDemoTrip(trip))
+          return {
+            ...persistedState,
+            ...getStateFromTrips(trips, persistedState.activeTripId),
+          }
         }
 
         const oldTripInfo = persistedState?.trip || defaultTripInfo
+
+        if (isLegacyDemoTrip({ ...oldTripInfo, id: 'trip_default' })) {
+          return {
+            trips: [],
+            activeTripId: '',
+            ...getActiveTripState(null),
+          }
+        }
 
         const migratedTrip = {
           id: 'trip_default',
@@ -559,13 +571,15 @@ export const useTripStore = create(
           ...currentState,
           ...persistedState,
         }
+        const trips = (mergedState.trips || []).filter((trip) => !isLegacyDemoTrip(trip))
 
-        const activeTrip = mergedState.trips?.find(
+        const activeTrip = trips.find(
           (trip) => trip.id === mergedState.activeTripId
         )
 
         return {
           ...mergedState,
+          trips,
           ...getActiveTripState(activeTrip),
         }
       },

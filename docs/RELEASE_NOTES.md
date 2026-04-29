@@ -24,6 +24,16 @@ Test URL: https://amazing-trip-f5732.web.app
 - Added a clearer fallback message for `auth/internal-error` during Google sign-in.
 - Bumped the service worker cache name so installed PWAs pick up the auth fix cleanly.
 
+### QA Hotfix - Trip Sharing & Product State
+
+- Fixed group trip sharing so owner/member permission fields are normalized and saved before opening the mobile share sheet.
+- Changed trip cloud writes to replace the full trip document instead of merge-writing nested member role maps, keeping removed or changed roles consistent with Firestore rules.
+- Made cloud sync tolerant of per-trip permission failures so one inaccessible trip no longer blocks the whole app from opening.
+- Removed the legacy Tokyo demo trip from the default product state and filtered that exact demo trip from migrated local/cloud display state.
+- Replaced raw Firebase permission messages with user-safe sync guidance while keeping detailed diagnostics in the console.
+- Rechecked OWASP-aligned controls for access control, authentication, CSP, XSS sinks, secrets exposure, and vulnerable dependencies.
+- Upgraded PDF import from `pdfjs-dist@3.11.174` to `pdfjs-dist@5.7.284`, switched Flights/Hotels PDF parsing to ES module loading, removed old vulnerable PDF.js public bundles, and confirmed `npm audit --omit=dev` reports 0 vulnerabilities.
+
 ### Release Goal
 
 此版本作為 Amazing Trip 第一個完整 QA 測試版本。產品目標是達到 app-like PWA 測試品質，但本階段不實際提交 App Store / Google Play。
