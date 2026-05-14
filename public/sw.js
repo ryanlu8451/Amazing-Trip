@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amazing-trip-v7'
+const CACHE_NAME = 'amazing-trip-v12'
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',

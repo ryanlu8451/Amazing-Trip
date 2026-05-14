@@ -15,7 +15,12 @@ import {
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
-import { canManageTripMembers, normalizeEmail, saveTripToCloud } from '../lib/tripCloud'
+import {
+  canManageTripMembers,
+  deleteTripForUserFromCloud,
+  normalizeEmail,
+  saveTripToCloud,
+} from '../lib/tripCloud'
 import { useTranslation } from '../lib/i18n'
 
 export default function TripSettings() {
@@ -106,9 +111,27 @@ export default function TripSettings() {
 
   const selectTripType = async (nextTripType) => {
     if (activeTrip && tripType !== nextTripType) {
-      await saveTripSettings(getOwnerSafeTripPatch({
-        tripType: nextTripType,
-      }))
+      const previousMemberEmails = memberEmails.map(normalizeEmail)
+      const patch = nextTripType === 'solo'
+        ? {
+            tripType: nextTripType,
+            memberEmails: [ownerEmail],
+            memberRoles: {
+              [ownerEmail]: 'owner',
+            },
+          }
+        : getOwnerSafeTripPatch({
+            tripType: nextTripType,
+          })
+      const saved = await saveTripSettings(patch)
+
+      if (saved && nextTripType === 'solo') {
+        await Promise.allSettled(
+          previousMemberEmails
+            .filter((memberEmail) => memberEmail && memberEmail !== ownerEmail)
+            .map((memberEmail) => deleteTripForUserFromCloud(activeTrip.id, memberEmail))
+        )
+      }
     }
   }
 
@@ -211,12 +234,16 @@ export default function TripSettings() {
 
     delete nextRoles[normalizedMemberEmail]
 
-    await saveTripSettings(getOwnerSafeTripPatch({
+    const saved = await saveTripSettings(getOwnerSafeTripPatch({
       memberEmails: memberEmails.filter(
         (currentEmail) => normalizeEmail(currentEmail) !== normalizedMemberEmail
       ),
       memberRoles: nextRoles,
     }), t('tripSettings.removed', { email: normalizedMemberEmail }))
+
+    if (saved) {
+      await deleteTripForUserFromCloud(activeTrip.id, normalizedMemberEmail)
+    }
   }
 
   return (

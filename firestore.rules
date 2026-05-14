@@ -30,7 +30,6 @@ service cloud.firestore {
 
       function userIsOwner(data) {
         return isSignedIn()
-          && data.ownerId == request.auth.uid
           && data.ownerEmail == userEmail()
           && userRole(data) == 'owner';
       }
@@ -138,6 +137,112 @@ service cloud.firestore {
         );
 
       allow delete: if userIsOwner(resource.data);
+    }
+
+    match /users/{userEmail}/trips/{tripId} {
+      function isSignedInForUserTrip() {
+        return request.auth != null
+          && request.auth.uid is string
+          && request.auth.token.email is string;
+      }
+
+      function authEmail() {
+        return request.auth.token.email.lower();
+      }
+
+      function validUserMemberRoles(data) {
+        return data.memberRoles is map
+          && data.memberRoles.keys().hasAll(data.memberEmails)
+          && data.memberRoles.keys().hasOnly(data.memberEmails)
+          && data.memberRoles.values().hasOnly(['owner', 'editor', 'viewer'])
+          && data.memberRoles[data.ownerEmail] == 'owner';
+      }
+
+      function validUserTripShape(data) {
+        return data.keys().hasOnly([
+            'id',
+            'name',
+            'destination',
+            'startDate',
+            'endDate',
+            'coverEmoji',
+            'members',
+            'tripType',
+            'flights',
+            'hotels',
+            'budget',
+            'timeline',
+            'tips',
+            'status',
+            'isHidden',
+            'ownerId',
+            'ownerEmail',
+            'memberEmails',
+            'memberRoles',
+            'updatedAt'
+          ])
+          && data.id == tripId
+          && data.name is string
+          && data.name.size() <= 120
+          && data.destination is string
+          && data.destination.size() <= 120
+          && data.startDate is string
+          && data.startDate.size() <= 20
+          && data.endDate is string
+          && data.endDate.size() <= 20
+          && data.coverEmoji is string
+          && data.coverEmoji.size() <= 32
+          && data.members is list
+          && data.members.size() <= 50
+          && data.tripType in ['solo', 'group']
+          && data.flights is list
+          && data.flights.size() <= 200
+          && data.hotels is list
+          && data.hotels.size() <= 200
+          && data.budget is list
+          && data.budget.size() <= 500
+          && data.timeline is list
+          && data.timeline.size() <= 120
+          && data.tips is map
+          && data.status in ['planning', 'completed']
+          && data.isHidden is bool
+          && data.ownerId is string
+          && data.ownerId.size() > 0
+          && data.ownerId.size() <= 128
+          && data.ownerEmail is string
+          && data.ownerEmail == data.ownerEmail.lower()
+          && data.ownerEmail.size() <= 254
+          && data.memberEmails is list
+          && data.memberEmails.size() > 0
+          && data.memberEmails.size() <= 50
+          && data.ownerEmail in data.memberEmails
+          && userEmail in data.memberEmails
+          && data.memberRoles is map
+          && validUserMemberRoles(data)
+          && data.updatedAt is timestamp;
+      }
+
+      function userCanWriteUserTrip(data) {
+        return isSignedInForUserTrip()
+          && validUserTripShape(data)
+          && (
+            userEmail == authEmail()
+            || (
+              data.ownerEmail == authEmail()
+              && userEmail in data.memberEmails
+            )
+          );
+      }
+
+      allow read: if isSignedInForUserTrip() && userEmail == authEmail();
+      allow create: if userCanWriteUserTrip(request.resource.data);
+      allow update: if userCanWriteUserTrip(request.resource.data)
+        && request.resource.data.ownerEmail == resource.data.ownerEmail;
+      allow delete: if isSignedInForUserTrip()
+        && (
+          userEmail == authEmail()
+          || resource.data.ownerEmail == authEmail()
+        );
     }
 
     match /{document=**} {

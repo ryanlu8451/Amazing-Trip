@@ -16,6 +16,7 @@ import {
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
 import { useTranslation } from '../lib/i18n'
+import { deleteTripFromCloud, getTripAccessFields, saveTripToCloud } from '../lib/tripCloud'
 import EditModal from '../components/EditModal'
 import { InputField } from '../components/InputField'
 import OnboardingModal from '../components/OnboardingModal'
@@ -162,7 +163,7 @@ export default function Home() {
     setCreating(true)
   }
 
-  const saveNewTrip = () => {
+  const saveNewTrip = async () => {
     if (!createForm.name || !createForm.destination) {
       setCreateError(t('home.tripNameRequired'))
       return
@@ -173,7 +174,20 @@ export default function Home() {
       return
     }
 
-    addTrip(createForm)
+    const newTrip = addTrip({
+      ...createForm,
+      ...getTripAccessFields(user),
+    })
+
+    try {
+      await saveTripToCloud(newTrip, user)
+    } catch (error) {
+      console.error('[Trip Create Save Error]', {
+        code: error.code,
+        message: error.message,
+      })
+    }
+
     setCreating(false)
   }
 
@@ -198,13 +212,22 @@ export default function Home() {
     setEditing(false)
   }
 
-  const removeTrip = (tripId) => {
+  const removeTrip = async (tripId) => {
     const confirmed = window.confirm(
       t('home.deleteConfirm')
     )
 
     if (confirmed) {
-      deleteTrip(tripId)
+      const deletedTrip = deleteTrip(tripId)
+
+      try {
+        await deleteTripFromCloud(deletedTrip?.id || tripId, user)
+      } catch (error) {
+        console.error('[Trip Delete Error]', {
+          code: error.code,
+          message: error.message,
+        })
+      }
     }
   }
 

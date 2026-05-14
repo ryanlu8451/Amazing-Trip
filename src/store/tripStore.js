@@ -201,6 +201,7 @@ export const useTripStore = create(
   persist(
     (set) => ({
       trips: [],
+      deletedTripIds: [],
       activeTripId: '',
       cloudReady: false,
       cloudError: '',
@@ -214,11 +215,17 @@ export const useTripStore = create(
       tips: emptyTips,
 
       setTripsFromCloud: (cloudTrips) => {
-        set((state) => ({
-          ...getStateFromTrips(cloudTrips, state.activeTripId),
-          cloudReady: true,
-          cloudError: '',
-        }))
+        set((state) => {
+          const deletedTripIds = new Set(state.deletedTripIds || [])
+          const visibleCloudTrips = cloudTrips.filter((trip) => !deletedTripIds.has(trip.id))
+
+          return {
+            ...getStateFromTrips(visibleCloudTrips, state.activeTripId),
+            deletedTripIds: state.deletedTripIds || [],
+            cloudReady: true,
+            cloudError: '',
+          }
+        })
       },
 
       setCloudError: (message) => {
@@ -271,9 +278,12 @@ export const useTripStore = create(
 
         set((state) => ({
           trips: [...state.trips, newTrip],
+          deletedTripIds: (state.deletedTripIds || []).filter((id) => id !== newTrip.id),
           activeTripId: newTrip.id,
           ...getActiveTripState(newTrip),
         }))
+
+        return newTrip
       },
 
       setActiveTrip: (tripId) => {
@@ -288,13 +298,26 @@ export const useTripStore = create(
       },
 
       deleteTrip: (tripId) => {
+        let deletedTrip = null
+
         set((state) => {
+          deletedTrip = state.trips.find((trip) => trip.id === tripId) || null
           const remainingTrips = state.trips.filter((trip) => trip.id !== tripId)
+          const deletedTripIds = [...new Set([...(state.deletedTripIds || []), tripId])]
 
           return {
             ...getStateFromTrips(remainingTrips, state.activeTripId),
+            deletedTripIds,
           }
         })
+
+        return deletedTrip
+      },
+
+      clearDeletedTrip: (tripId) => {
+        set((state) => ({
+          deletedTripIds: (state.deletedTripIds || []).filter((id) => id !== tripId),
+        }))
       },
 
       updateTrip: (data) => {
@@ -546,6 +569,7 @@ export const useTripStore = create(
           const trips = persistedState.trips.filter((trip) => !isLegacyDemoTrip(trip))
           return {
             ...persistedState,
+            deletedTripIds: persistedState.deletedTripIds || [],
             cloudReady: false,
             cloudError: '',
             ...getStateFromTrips(trips, persistedState.activeTripId),
@@ -557,6 +581,7 @@ export const useTripStore = create(
         if (isLegacyDemoTrip({ ...oldTripInfo, id: 'trip_default' })) {
           return {
             trips: [],
+            deletedTripIds: [],
             activeTripId: '',
             ...getActiveTripState(null),
           }
@@ -580,6 +605,7 @@ export const useTripStore = create(
 
         return {
           trips: [migratedTrip],
+          deletedTripIds: [],
           activeTripId: migratedTrip.id,
           cloudReady: false,
           cloudError: '',
@@ -593,6 +619,7 @@ export const useTripStore = create(
           ...persistedState,
         }
         const trips = (mergedState.trips || []).filter((trip) => !isLegacyDemoTrip(trip))
+        const deletedTripIds = mergedState.deletedTripIds || []
 
         const activeTrip = trips.find(
           (trip) => trip.id === mergedState.activeTripId
@@ -601,6 +628,7 @@ export const useTripStore = create(
         return {
           ...mergedState,
           trips,
+          deletedTripIds,
           cloudReady: false,
           cloudError: '',
           ...getActiveTripState(activeTrip),
@@ -608,6 +636,7 @@ export const useTripStore = create(
       },
       partialize: (state) => ({
         trips: state.trips,
+        deletedTripIds: state.deletedTripIds,
         activeTripId: state.activeTripId,
         trip: state.trip,
         flights: state.flights,

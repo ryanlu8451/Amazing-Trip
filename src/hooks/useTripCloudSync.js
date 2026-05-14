@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   canDeleteTrip,
   canSaveTripToCloud,
@@ -39,6 +39,16 @@ function sortTripsForDisplay(trips) {
   })
 }
 
+function mergeCloudAndLocalTrips(cloudTrips, localTrips) {
+  const cloudTripsById = new Map(cloudTrips.map((trip) => [trip.id, trip]))
+  const localOnlyTrips = localTrips.filter((trip) => !cloudTripsById.has(trip.id))
+
+  return {
+    mergedTrips: sortTripsForDisplay([...cloudTrips, ...localOnlyTrips]),
+    localOnlyTrips,
+  }
+}
+
 function getComparableTrip(trip) {
   return Object.fromEntries(
     Object.entries(trip || {}).filter(([key]) => key !== 'updatedAt')
@@ -57,10 +67,29 @@ export function useTripCloudSync(user) {
   const applyingCloudRef = useRef(false)
   const lastTripsRef = useRef([])
   const writeTimerRef = useRef(null)
-  const hasMigratedLocalTripsRef = useRef(false)
+  const initialLocalPushKeyRef = useRef('')
+  const [hasHydratedTrips, setHasHydratedTrips] = useState(() =>
+    useTripStore.persist?.hasHydrated?.() ?? true
+  )
 
   useEffect(() => {
-    if (!user?.email) {
+    if (hasHydratedTrips) {
+      return undefined
+    }
+
+    const unsubscribe = useTripStore.persist?.onFinishHydration?.(() => {
+      setHasHydratedTrips(true)
+    })
+
+    if (useTripStore.persist?.hasHydrated?.()) {
+      queueMicrotask(() => setHasHydratedTrips(true))
+    }
+
+    return unsubscribe
+  }, [hasHydratedTrips])
+
+  useEffect(() => {
+    if (!user?.email || !hasHydratedTrips) {
       return undefined
     }
 
@@ -71,26 +100,33 @@ export function useTripCloudSync(user) {
           (trip) => !isLegacyDemoTrip(trip, user)
         )
         const displayCloudTrips = cloudTrips.filter((trip) => !isLegacyDemoTrip(trip, user))
+        const cloudSafeCurrentTrips = prepareLocalTripsForCloud(currentTrips, user)
+        const { mergedTrips, localOnlyTrips } = mergeCloudAndLocalTrips(
+          displayCloudTrips,
+          cloudSafeCurrentTrips
+        )
 
-        if (displayCloudTrips.length === 0 && currentTrips.length > 0 && !hasMigratedLocalTripsRef.current) {
-          hasMigratedLocalTripsRef.current = true
-          const cloudSafeTrips = prepareLocalTripsForCloud(currentTrips, user)
+        if (localOnlyTrips.length > 0) {
           applyingCloudRef.current = true
-          useTripStore.getState().setTripsFromCloud(cloudSafeTrips)
-          lastTripsRef.current = cloudSafeTrips
+          useTripStore.getState().setTripsFromCloud(mergedTrips)
+          lastTripsRef.current = mergedTrips
           applyingCloudRef.current = false
-          const saveErrors = await saveTripsIndividually(cloudSafeTrips, user)
+          const saveErrors = await saveTripsIndividually(localOnlyTrips, user)
 
           if (saveErrors.length > 0) {
             console.warn('[Trip Cloud Migration Partial Save]', saveErrors)
+            useTripStore.getState().setCloudError(
+              'Some local trips could not sync to Firebase. Keep this device online and refresh to retry.'
+            )
+          } else {
+            useTripStore.getState().clearCloudError()
           }
           return
         }
 
         applyingCloudRef.current = true
-        const sortedTrips = sortTripsForDisplay(displayCloudTrips)
-        useTripStore.getState().setTripsFromCloud(sortedTrips)
-        lastTripsRef.current = sortedTrips
+        useTripStore.getState().setTripsFromCloud(sortTripsForDisplay(displayCloudTrips))
+        lastTripsRef.current = sortTripsForDisplay(displayCloudTrips)
         applyingCloudRef.current = false
       },
       (error) => {
@@ -103,10 +139,38 @@ export function useTripCloudSync(user) {
     )
 
     return unsubscribe
-  }, [user])
+  }, [hasHydratedTrips, user])
 
   useEffect(() => {
-    if (!user?.email) {
+    if (!user?.email || !hasHydratedTrips) {
+      return
+    }
+
+    const localTrips = prepareLocalTripsForCloud(useTripStore.getState().trips, user).filter(
+      (trip) => canSaveTripToCloud(trip, user)
+    )
+    const pushKey = `${user.email}:${localTrips.map((trip) => trip.id).join('|')}`
+
+    if (localTrips.length === 0 || initialLocalPushKeyRef.current === pushKey) {
+      return
+    }
+
+    initialLocalPushKeyRef.current = pushKey
+    saveTripsIndividually(localTrips, user).then((saveErrors) => {
+      if (saveErrors.length > 0) {
+        console.warn('[Trip Cloud Initial Local Push Partial Failure]', saveErrors)
+        useTripStore.getState().setCloudError(
+          'Some local trips could not sync to Firebase. Keep this device online and refresh to retry.'
+        )
+        return
+      }
+
+      useTripStore.getState().clearCloudError()
+    })
+  }, [hasHydratedTrips, user])
+
+  useEffect(() => {
+    if (!user?.email || !hasHydratedTrips) {
       return undefined
     }
 
@@ -134,7 +198,7 @@ export function useTripCloudSync(user) {
 
         try {
           const saveErrors = await saveTripsIndividually(tripsToSave, user)
-          const deleteErrors = await deleteTripsIndividually(deletedTripIds)
+          const deleteErrors = await deleteTripsIndividually(deletedTripIds, user)
           const activeTripSaveFailed = saveErrors.some(
             (errorResult) => errorResult.tripId === state.activeTripId
           )
@@ -146,6 +210,11 @@ export function useTripCloudSync(user) {
           if (deleteErrors.length > 0) {
             console.warn('[Trip Cloud Delete Partial Failure]', deleteErrors)
           }
+
+          const failedDeleteIds = new Set(deleteErrors.map((errorResult) => errorResult.tripId))
+          deletedTripIds
+            .filter((tripId) => !failedDeleteIds.has(tripId))
+            .forEach((tripId) => useTripStore.getState().clearDeletedTrip(tripId))
 
           lastTripsRef.current = state.trips
           if (activeTripSaveFailed) {
@@ -171,7 +240,7 @@ export function useTripCloudSync(user) {
       window.clearTimeout(writeTimerRef.current)
       unsubscribe()
     }
-  }, [user])
+  }, [hasHydratedTrips, user])
 }
 
 async function saveTripsIndividually(trips, user) {
@@ -191,10 +260,10 @@ async function saveTripsIndividually(trips, user) {
     .filter((result) => result.status === 'rejected')
 }
 
-async function deleteTripsIndividually(tripIds) {
+async function deleteTripsIndividually(tripIds, user) {
   const results = await Promise.allSettled(
     tripIds.map(async (tripId) => {
-      await deleteTripFromCloud(tripId)
+      await deleteTripFromCloud(tripId, user)
       return tripId
     })
   )

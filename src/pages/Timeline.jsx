@@ -18,7 +18,13 @@ import {
 } from 'lucide-react'
 import { useTripStore } from '../store/tripStore'
 import { useAuthStore } from '../store/authStore'
-import { canDeleteTrip, canEditTrip } from '../lib/tripCloud'
+import {
+  canDeleteTrip,
+  canEditTrip,
+  deleteTripFromCloud,
+  getTripAccessFields,
+  saveTripToCloud,
+} from '../lib/tripCloud'
 import { useTranslation } from '../lib/i18n'
 import EditModal from '../components/EditModal'
 import { InputField, SelectField } from '../components/InputField'
@@ -388,7 +394,7 @@ export default function Timeline() {
     }
   }
 
-  const saveNewTrip = () => {
+  const saveNewTrip = async () => {
     if (!tripForm.name || !tripForm.destination) {
       setTripError(t('timeline.tripRequired'))
       return
@@ -399,11 +405,21 @@ export default function Timeline() {
       return
     }
 
-    addTrip({
+    const newTrip = addTrip({
       ...tripForm,
+      ...getTripAccessFields(user),
       status: 'planning',
       isHidden: false,
     })
+
+    try {
+      await saveTripToCloud(newTrip, user)
+    } catch (error) {
+      console.error('[Trip Create Save Error]', {
+        code: error.code,
+        message: error.message,
+      })
+    }
 
     closeTripModal()
   }
@@ -428,7 +444,7 @@ export default function Timeline() {
     closeTripModal()
   }
 
-  const removeTrip = (tripId) => {
+  const removeTrip = async (tripId) => {
     if (!userCanDelete) {
       setTripError(t('common.ownerOnlyDelete'))
       return
@@ -439,8 +455,17 @@ export default function Timeline() {
     )
 
     if (confirmed) {
-      deleteTrip(tripId)
+      const deletedTrip = deleteTrip(tripId)
       setOpenActionsTripId('')
+
+      try {
+        await deleteTripFromCloud(deletedTrip?.id || tripId, user)
+      } catch (error) {
+        console.error('[Trip Delete Error]', {
+          code: error.code,
+          message: error.message,
+        })
+      }
     }
   }
 
